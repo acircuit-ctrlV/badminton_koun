@@ -11,57 +11,73 @@ def process_table_data(table_data_df, shuttle_val, walkin_val, court_val, real_s
     Processes the DataFrame: counts slashes, performs calculations,
     and returns updated DataFrame and results.
     """
-    # Create a copy to avoid modifying the original DataFrame in-place
-    processed_data_df = table_data_df.copy()
+    # Convert DataFrame to a list of lists for easier cell-level manipulation
+    processed_data_list = table_data_df.values.tolist()
+    processed_data = [list(row) for row in processed_data_list]
 
     total_shuttlecock_grand = 0
 
     # Loop through rows up to dynamic_last_row_to_process
     for i in range(last_row_to_process):
-        if i >= len(processed_data_df):
+        if i >= len(processed_data):
             break  # Stop if we exceed the actual number of rows
 
-        name_cell_value = str(processed_data_df.loc[i, 'Name']).strip()
+        name_cell_value = str(processed_data[i][0]).strip()
         if not name_cell_value:
             # Clear calculated fields for empty name rows
-            processed_data_df.loc[i, 'Total /'] = ''
-            processed_data_df.loc[i, 'Price'] = ''
+            if 2 < len(processed_data[i]):
+                processed_data[i][2] = ''
+            if 3 < len(processed_data[i]):
+                processed_data[i][3] = ''
             continue
 
         # --- CHANGE: Counting 'l' instead of '/' ---
         total_row_slashes = 0
         # Iterate through game columns (indices 4 to 23)
         for col_idx in range(4, 24):
-            col_name = processed_data_df.columns[col_idx]
-            cell_value = str(processed_data_df.loc[i, col_name])
-            total_row_slashes += cell_value.count('l')
+            if col_idx < len(processed_data[i]):  # Ensure column exists for the current row
+                cell_value = str(processed_data[i][col_idx])
+                total_row_slashes += cell_value.count('l')
 
         total_shuttlecock_grand += total_row_slashes
 
-        # Update 'Total /' column
-        processed_data_df.loc[i, 'Total /'] = total_row_slashes
+        # Update 'Total /' column (index 2)
+        if 2 < len(processed_data[i]):
+            processed_data[i][2] = total_row_slashes
+        else:
+            # Extend row if it's too short for this column
+            while len(processed_data[i]) <= 2:
+                processed_data[i].append('')
+            processed_data[i][2] = total_row_slashes
 
-        # Update 'Price' column
-        processed_data_df.loc[i, 'Price'] = (total_row_slashes * shuttle_val) + walkin_val
-    
+        # Update 'Price' column (index 3)
+        if 3 < len(processed_data[i]):
+            processed_data[i][3] = (total_row_slashes * shuttle_val) + walkin_val
+        else:
+            # Extend row if it's too short for this column
+            while len(processed_data[i]) <= 3:
+                processed_data[i].append('')
+            processed_data[i][3] = (total_row_slashes * walkin_val) + walkin_val
+
     # Ensure enough rows exist for calculations at row 22 and 23 (indices 21 and 22)
-    while len(processed_data_df) < 23:
-        new_row = pd.Series([''] * len(processed_data_df.columns), index=processed_data_df.columns)
-        processed_data_df = pd.concat([processed_data_df, new_row.to_frame().T], ignore_index=True)
+    while len(processed_data) < 23:
+        processed_data.append([''] * len(table_data_df.columns))
 
     sum_d = 0  # Sum of 'Total /' column
     sum_e = 0  # Sum of 'Price' column
     for i in range(0, last_row_to_process):
-        if i < len(processed_data_df):  # Ensure row exists
-            if str(processed_data_df.loc[i, 'Name']).strip():  # Only sum if 'Name' column is not empty
-                try:
-                    sum_d += float(processed_data_df.loc[i, 'Total /'])
-                except (ValueError, TypeError):
-                    pass  # Ignore if value is not a number
-                try:
-                    sum_e += float(processed_data_df.loc[i, 'Price'])
-                except (ValueError, TypeError):
-                    pass  # Ignore if value is not a number
+        if i < len(processed_data):  # Ensure row exists
+            if str(processed_data[i][0]).strip():  # Only sum if 'Name' column is not empty
+                if 2 < len(processed_data[i]):  # Check if 'Total /' column exists
+                    try:
+                        sum_d += float(processed_data[i][2])
+                    except (ValueError, TypeError):
+                        pass  # Ignore if value is not a number
+                if 3 < len(processed_data[i]):  # Check if 'Price' column exists
+                    try:
+                        sum_e += float(processed_data[i][3])
+                    except (ValueError, TypeError):
+                        pass  # Ignore if value is not a number
 
     # New calculations from the VBA code
     old_solution_sum = ((total_shuttlecock_grand / 4) * real_shuttle_val) + court_val
@@ -74,7 +90,9 @@ def process_table_data(table_data_df, shuttle_val, walkin_val, court_val, real_s
         "sum_D": sum_d  # This is the sum of 'Total /' column
     }
 
-    return processed_data_df, results
+    # Convert the processed list of lists back to a DataFrame
+    updated_table_df = pd.DataFrame(processed_data, columns=table_data_df.columns)
+    return updated_table_df, results
 
 
 def dataframe_to_image(df, date_text=""):
@@ -222,87 +240,52 @@ with col4:
 
 st.header("ตารางก๊วน")
 
-# Find the last row with a name to determine the number of rows to display
-dynamic_last_row_to_process = 0
-for idx, row in st.session_state.df.iterrows():
-    if str(row['Name']).strip():
-        dynamic_last_row_to_process = idx + 1
-# Add a few extra rows for user convenience
-num_rows_to_display = max(10, dynamic_last_row_to_process + 5)
+edited_df = st.data_editor(st.session_state.df, num_rows="dynamic", use_container_width=True, key="main_data_editor")
 
+if st.button("Calculate"):
+    st.session_state.df = edited_df
 
-# This function will be called when a button is clicked
-def handle_slash_button_click(row_idx, col_idx):
-    current_value = st.session_state.df.iloc[row_idx, col_idx]
-    if current_value == 'l':
-        st.session_state.df.iloc[row_idx, col_idx] = ''
-    else:
-        st.session_state.df.iloc[row_idx, col_idx] = 'l'
-    
-    # Recalculate everything after a click
+    st.session_state.warning_message = ""
+
     df_to_process = st.session_state.df.fillna('')
-    updated_df, results = process_table_data(
-        df_to_process, shuttle_val, walkin_val, court_val, real_shuttle_val,
-        last_row_to_process=dynamic_last_row_to_process
-    )
-    st.session_state.df = updated_df
-    st.session_state.results = results
-    # Rerun to update the display with new calculations
-    st.rerun()
 
+    dynamic_last_row_to_process = 0
+    for idx, row in df_to_process.iterrows():
+        if str(row['Name']).strip():
+            dynamic_last_row_to_process = idx + 1
 
-# Manually render the table with buttons for 'game' columns
-# First, display headers
-cols = st.columns([1, 1, 1, 1] + [0.5] * 20)  # Adjust column widths as needed
-for i, col_name in enumerate(headers):
-    with cols[i]:
-        st.write(f"**{col_name}**")
+    if dynamic_last_row_to_process == 0:
+        st.warning("No names found in the table to process. Please enter data in the 'Name' column.")
+        st.session_state.results = None
+    else:
+        invalid_columns = []
+        if len(df_to_process.columns) >= 24:
+            for col_idx in range(4, 24):
+                if col_idx < len(df_to_process.columns):
+                    total_slashes_in_column = df_to_process.iloc[:dynamic_last_row_to_process, col_idx].astype(str).str.count('l').sum()
+                    if total_slashes_in_column % 4 != 0:
+                        invalid_columns.append(df_to_process.columns[col_idx])
+        else:
+            st.session_state.warning_message = "The table does not have enough columns for full game data validation (expected at least 24 columns for 'game1' to 'game20')."
 
-# Display data rows
-for i in range(num_rows_to_display):
-    # Ensure row exists in the DataFrame, add a new one if not
-    if i >= len(st.session_state.df):
-        new_row = pd.Series([''] * len(headers), index=headers)
-        st.session_state.df = pd.concat([st.session_state.df, new_row.to_frame().T], ignore_index=True)
+        if invalid_columns:
+            if st.session_state.warning_message:
+                st.session_state.warning_message += f"\n\nAdditionally, the total slash count in the following columns is not divisible by 4: {', '.join(invalid_columns)}"
+            else:
+                st.session_state.warning_message = f"Game ที่ลูกเเบดไม่ลงตัว: {', '.join(invalid_columns)}"
 
-    row = st.session_state.df.iloc[i]
-    cols = st.columns([1, 1, 1, 1] + [0.5] * 20) # Adjust column widths as needed
-    
-    # Editable 'Name' and 'Time' columns
-    with cols[0]:
-        st.session_state.df.iloc[i, 0] = st.text_input(f"Name_{i}", value=row['Name'], label_visibility="collapsed")
-    with cols[1]:
-        st.session_state.df.iloc[i, 1] = st.text_input(f"Time_{i}", value=row['Time'], label_visibility="collapsed")
-    
-    # Display calculated 'Total /' and 'Price' columns
-    with cols[2]:
-        st.markdown(f'<div style="text-align: center; height: 38px; display: flex; align-items: center; justify-content: center; background-color: #f0f2f6; border-radius: 5px;">{row["Total /"]}</div>', unsafe_allow_html=True)
-    with cols[3]:
-        st.markdown(f'<div style="text-align: center; height: 38px; display: flex; align-items: center; justify-content: center; background-color: #f0f2f6; border-radius: 5px;">{row["Price"]}</div>', unsafe_allow_html=True)
-    
-    # Buttons for 'game' columns
-    for j in range(4, 24):
-        col_name = headers[j]
-        with cols[j]:
-            current_value = row[col_name]
-            button_label = "l" if current_value == 'l' else ""
-            button_style = "primary" if current_value == 'l' else "secondary"
-            st.button(
-                button_label,
-                key=f"button_{i}_{j}",
-                on_click=handle_slash_button_click,
-                args=(i, j),
-                type=button_style,
-                use_container_width=True
-            )
+        updated_df, results = process_table_data(
+            df_to_process, shuttle_val, walkin_val, court_val, real_shuttle_val,
+            last_row_to_process=dynamic_last_row_to_process
+        )
+        st.session_state.df = updated_df
+        st.session_state.results = results
 
-# Add a button to add a new row
-if st.button("Add new row"):
-    new_row = pd.Series([''] * len(headers), index=headers)
-    st.session_state.df = pd.concat([st.session_state.df, new_row.to_frame().T], ignore_index=True)
-    st.rerun()
+        st.rerun()
+        
+if st.session_state.warning_message:
+    st.warning(st.session_state.warning_message)
 
-# --- The rest of your code remains the same ---
 st.header("สรุป")
 if st.session_state.results:
     st.write(f"**จำนวนลูกเเบดที่ใช้ทั้งหมด:** {st.session_state.results['total_slashes']/4} units")
