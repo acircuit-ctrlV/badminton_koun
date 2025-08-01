@@ -97,43 +97,59 @@ def process_table_data(table_data_df, shuttle_val, walkin_val, court_val, real_s
 def dataframe_to_image(df):
     """
     Converts a pandas DataFrame to a Pillow Image object with aligned columns.
-    This version uses a default font, which may not be monospaced.
+    This version uses a default font but calculates column positions to align text.
     """
-    # 1. Manually format the DataFrame to a fixed-width string
-    max_widths = {col: max(df[col].astype(str).str.len().max(), len(col)) for col in df.columns}
-    header_string = "".join([f"{col:<{max_widths[col] + 2}}" for col in df.columns])
-    data_rows = []
-    for _, row in df.iterrows():
-        row_string = "".join([f"{str(row[col]):<{max_widths[col] + 2}}" for col in df.columns])
-        data_rows.append(row_string)
-
-    df_string = header_string + "\n" + "\n".join(data_rows)
-
-    # --- FIX: Use the default font that requires no files to be downloaded ---
+    # Use the default font which is always available
     font = ImageFont.load_default()
+    
+    # Calculate column widths based on the maximum width of text in each column
+    column_widths = {}
+    for col in df.columns:
+        # Get the width of the column header
+        header_width = font.getbbox(str(col))[2]
+        # Get the max width of all cell values in the column
+        max_value_width = max([font.getbbox(str(item))[2] for item in df[col]]) if not df[col].empty else 0
+        column_widths[col] = max(header_width, max_value_width)
 
-    # 2. Determine image size based on the new, aligned string
-    lines = df_string.split('\n')
+    # Add some padding to each column
+    column_padding = 10
+    total_width = sum(column_widths.values()) + (len(column_widths) + 1) * column_padding
+    
+    # Calculate image dimensions
     line_height = font.getbbox("A")[3] - font.getbbox("A")[1]
-    text_width = max(font.getbbox(line)[2] for line in lines)
-
-    img_width = text_width + 40
-    img_height = (len(lines) * line_height) + 40
-
-    # 3. Create a new image with white background
-    img = Image.new('RGB', (img_width, img_height), color=(255, 255, 255))
-    d = ImageDraw.Draw(img)
-
-    # 4. Draw the text on the image
-    d.text((20, 20), df_string, font=font, fill=(0, 0, 0))
-
-    # Save the image to a byte stream
+    header_height = line_height + column_padding
+    row_height = line_height + 5  # Add a little extra space for rows
+    img_width = total_width + 40
+    img_height = header_height + (len(df) * row_height) + 40
+    
+    # Create the image
+    img = Image.new('RGB', (img_width, img_height), color='white')
+    draw = ImageDraw.Draw(img)
+    
+    x_offset = 20
+    y_offset = 20
+    
+    # Draw headers
+    current_x = x_offset
+    for col in df.columns:
+        draw.text((current_x, y_offset), str(col), font=font, fill='black')
+        current_x += column_widths[col] + column_padding
+        
+    y_offset += header_height
+    
+    # Draw data rows
+    for _, row in df.iterrows():
+        current_x = x_offset
+        for col in df.columns:
+            draw.text((current_x, y_offset), str(row[col]), font=font, fill='black')
+            current_x += column_widths[col] + column_padding
+        y_offset += row_height
+    
     buf = io.BytesIO()
     img.save(buf, format="PNG")
     buf.seek(0)
-
+    
     return buf
-
 
 # --- Streamlit Session State Management ---
 headers = ["Name", "Time", "Total /", "Price", "game1", "game2", "game3", "game4", "game5",
@@ -141,18 +157,18 @@ headers = ["Name", "Time", "Total /", "Price", "game1", "game2", "game3", "game4
            "game14", "game15", "game16", "game17", "game18", "game19", "game20"]
 
 initial_data_list = [
-    ["is", "18:00", "", "", "", "", "l", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
-    ["ploy", "18:00", "", "", "", "", "l", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
-    ["mart", "18:00", "", "", "", "", "", "l", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
-    ["voy", "18:00", "", "", "", "", "", "l", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
-    ["jump", "18:00", "", "", "l", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
-    ["tong", "18:00", "", "", "l", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
-    ["k", "18:00", "", "", "l", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
-    ["song", "18:00", "", "", "l", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
+    ["is", "18:00", "", "", "l", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
+    ["ploy", "18:00", "", "", "l", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
+    ["mart", "18:00", "", "", "", "l", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
+    ["voy", "18:00", "", "", "", "l", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
+    ["jump", "18:00", "", "", "", "", "l", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
+    ["tong", "18:00", "", "", "", "", "l", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
+    ["k", "18:00", "", "", "", "", "l", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
+    ["song", "18:00", "", "", "", "", "l", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
     ["nice", "18:00", "", "", "", "l", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
-    ["nut", "18:00", "", "", "", "l", "l", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
-    ["temp", "18:00", "", "", "", "l", "l", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
-    ["pin", "18:00", "", "", "", "l", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""]
+    ["nut", "18:00", "", "", "l", "l", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
+    ["temp", "18:00", "", "", "l", "l", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
+    ["pin", "18:00", "", "", "l", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""]
 ]
 for row in initial_data_list:
     while len(row) < len(headers):
@@ -213,7 +229,7 @@ if st.button("Calculate"):
             if st.session_state.warning_message:
                 st.session_state.warning_message += f"\n\nAdditionally, the total slash count in the following columns is not divisible by 4: {', '.join(invalid_columns)}"
             else:
-                st.session_state.warning_message = f"The total slash count in the following columns is not divisible by 4: {', '.join(invalid_columns)}"
+                st.session_state.warning_message = f"Game ที่ลูกเเบดไม่ลงตัว: {', '.join(invalid_columns)}"
 
         updated_df, results = process_table_data(
             df_to_process, shuttle_val, walkin_val, court_val, real_shuttle_val,
@@ -223,21 +239,21 @@ if st.button("Calculate"):
         st.session_state.results = results
 
         st.rerun()
-
+        
 if st.session_state.warning_message:
     st.warning(st.session_state.warning_message)
 
-st.header("Calculation Summary")
+st.header("สรุป")
 if st.session_state.results:
-    st.write(f"**Total shuttlecock:** {st.session_state.results['total_slashes']/4} units")
-    st.write(f"**Old solution price:** {st.session_state.results['old_solution_sum']}")
-    st.write(f"**New solution price:** {st.session_state.results['net_price_sum']}")
-    st.write(f"**New solution - old solution:** {st.session_state.results['new_solution_minus_old_solution']}")
+    st.write(f"**จำนวนลูกเเบดที่ใช้ทั้งหมด:** {st.session_state.results['total_slashes']/4} units")
+    st.write(f"**คิดราคาเเบบเก่า:** {st.session_state.results['old_solution_sum']}")
+    st.write(f"**คิดราคาเเบบใหม่:** {st.session_state.results['net_price_sum']}")
+    st.write(f"**ราคาใหม่ - ราคาเก่า:** {st.session_state.results['new_solution_minus_old_solution']}")
 elif st.session_state.results is None and not st.session_state.warning_message:
     st.write("No calculations performed yet or no valid data to process.")
 
 st.markdown("---")
-st.subheader("Download Table as Image")
+st.subheader("Download ตารางตีก๊วน")
 
 if st.session_state.results:
     image_bytes = dataframe_to_image(st.session_state.df)
