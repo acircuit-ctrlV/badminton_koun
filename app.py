@@ -11,64 +11,75 @@ def process_table_data(table_data_df, shuttle_val, walkin_val, court_val, real_s
     Processes the DataFrame: counts slashes, performs calculations,
     and returns updated DataFrame and results.
     """
+    # Convert DataFrame to a list of lists for easier cell-level manipulation
     processed_data_list = table_data_df.values.tolist()
     processed_data = [list(row) for row in processed_data_list]
 
     total_shuttlecock_grand = 0
 
+    # Loop through rows up to dynamic_last_row_to_process
     for i in range(last_row_to_process):
         if i >= len(processed_data):
-            break
+            break  # Stop if we exceed the actual number of rows
 
         name_cell_value = str(processed_data[i][0]).strip()
         if not name_cell_value:
+            # Clear calculated fields for empty name rows
             if 2 < len(processed_data[i]):
                 processed_data[i][2] = ''
             if 3 < len(processed_data[i]):
                 processed_data[i][3] = ''
             continue
 
+        # --- CHANGE: Counting 'l' instead of '/' ---
         total_row_slashes = 0
+        # Iterate through game columns (indices 4 to 23)
         for col_idx in range(4, 24):
-            if col_idx < len(processed_data[i]):
+            if col_idx < len(processed_data[i]):  # Ensure column exists for the current row
                 cell_value = str(processed_data[i][col_idx])
                 total_row_slashes += cell_value.count('l')
 
         total_shuttlecock_grand += total_row_slashes
 
+        # Update 'Total /' column (index 2)
         if 2 < len(processed_data[i]):
             processed_data[i][2] = total_row_slashes
         else:
+            # Extend row if it's too short for this column
             while len(processed_data[i]) <= 2:
                 processed_data[i].append('')
             processed_data[i][2] = total_row_slashes
 
+        # Update 'Price' column (index 3)
         if 3 < len(processed_data[i]):
             processed_data[i][3] = (total_row_slashes * shuttle_val) + walkin_val
         else:
+            # Extend row if it's too short for this column
             while len(processed_data[i]) <= 3:
                 processed_data[i].append('')
             processed_data[i][3] = (total_row_slashes * walkin_val) + walkin_val
 
+    # Ensure enough rows exist for calculations at row 22 and 23 (indices 21 and 22)
     while len(processed_data) < 23:
         processed_data.append([''] * len(table_data_df.columns))
 
-    sum_d = 0
-    sum_e = 0
+    sum_d = 0  # Sum of 'Total /' column
+    sum_e = 0  # Sum of 'Price' column
     for i in range(0, last_row_to_process):
-        if i < len(processed_data):
-            if str(processed_data[i][0]).strip():
-                if 2 < len(processed_data[i]):
+        if i < len(processed_data):  # Ensure row exists
+            if str(processed_data[i][0]).strip():  # Only sum if 'Name' column is not empty
+                if 2 < len(processed_data[i]):  # Check if 'Total /' column exists
                     try:
                         sum_d += float(processed_data[i][2])
                     except (ValueError, TypeError):
-                        pass
-                if 3 < len(processed_data[i]):
+                        pass  # Ignore if value is not a number
+                if 3 < len(processed_data[i]):  # Check if 'Price' column exists
                     try:
                         sum_e += float(processed_data[i][3])
                     except (ValueError, TypeError):
-                        pass
+                        pass  # Ignore if value is not a number
 
+    # New calculations from the VBA code
     old_solution_sum = ((total_shuttlecock_grand / 4) * real_shuttle_val) + court_val
 
     results = {
@@ -76,11 +87,13 @@ def process_table_data(table_data_df, shuttle_val, walkin_val, court_val, real_s
         "old_solution_sum": old_solution_sum,
         "net_price_sum": sum_e,
         "new_solution_minus_old_solution": sum_e - old_solution_sum,
-        "sum_D": sum_d
+        "sum_D": sum_d  # This is the sum of 'Total /' column
     }
 
+    # Convert the processed list of lists back to a DataFrame
     updated_table_df = pd.DataFrame(processed_data, columns=table_data_df.columns)
     return updated_table_df, results
+
 
 def dataframe_to_image(df, date_text=""):
     """
@@ -89,45 +102,53 @@ def dataframe_to_image(df, date_text=""):
     """
     try:
         font_path = "THSarabunNew.ttf"
-        font = ImageFont.truetype(font_path, 24)  # Increased font size for content
-        title_font = ImageFont.truetype(font_path, 36) # Increased font size for title
+        font = ImageFont.truetype(font_path, 20)
+        title_font = ImageFont.truetype(font_path, 28)
     except IOError:
         st.warning(f"Font file '{font_path}' not found. Using default font.")
         font = ImageFont.load_default()
         title_font = ImageFont.load_default()
 
+    # Calculate column widths based on the maximum width of text in each column
     column_widths = {}
     for col in df.columns:
+        # Get the width of the column header
         header_width = font.getbbox(str(col))[2]
+        # Get the max width of all cell values in the column
         max_value_width = max([font.getbbox(str(item))[2] for item in df[col]]) if not df[col].empty else 0
         column_widths[col] = max(header_width, max_value_width)
 
-    column_padding = 20  # Increased padding
+    # Add some padding to each column
+    column_padding = 10
     total_width = sum(column_widths.values()) + (len(column_widths) + 1) * column_padding
     
+    # Calculate image dimensions
     line_height = font.getbbox("A")[3] - font.getbbox("A")[1]
     header_height = line_height + column_padding
-    row_height = line_height + 10  # Increased row height
+    row_height = line_height + 5  # Add a little extra space for rows
     
     title_text = "ตารางก๊วน"
     title_height = title_font.getbbox(title_text)[3] - title_font.getbbox(title_text)[1]
-    date_width = font.getbbox(date_text)[2]
     
-    img_width = max(total_width + 40, 20 + title_font.getbbox(title_text)[2] + 20 + date_width + 20)
+    img_width = total_width + 40
     img_height = title_height + line_height + 20 + header_height + (len(df) * row_height) + 40
     
+    # Create the image
     img = Image.new('RGB', (img_width, img_height), color='white')
     draw = ImageDraw.Draw(img)
     
     x_offset = 20
     y_offset = 20
     
+    # Draw title
     draw.text((x_offset, y_offset), title_text, font=title_font, fill='black')
     
+    # Draw the date
     date_x = x_offset + title_font.getbbox(title_text)[2] + 20
     date_y = y_offset + (title_height - (font.getbbox(date_text)[3] - font.getbbox(date_text)[1])) / 2
     draw.text((date_x, date_y), date_text, font=font, fill='black')
     
+    # Draw the red box around the date
     box_padding = 5
     box_coords = [
         date_x - box_padding,
@@ -140,6 +161,7 @@ def dataframe_to_image(df, date_text=""):
     y_offset_start = y_offset + title_height + 10
     y_offset = y_offset_start
     
+    # Draw headers
     current_x = x_offset
     for col in df.columns:
         draw.text((current_x, y_offset), str(col), font=font, fill='black')
@@ -147,6 +169,7 @@ def dataframe_to_image(df, date_text=""):
         
     y_offset += header_height
     
+    # Draw data rows
     for _, row in df.iterrows():
         current_x = x_offset
         for col in df.columns:
@@ -191,14 +214,12 @@ if 'warning_message' not in st.session_state:
     st.session_state.warning_message = ""
 if 'current_date' not in st.session_state:
     st.session_state.current_date = date.today()
-if 'edited_df_state' not in st.session_state:
-    st.session_state.edited_df_state = st.session_state.df.copy()
 
 st.title("คิดเงินค่าตีก๊วน")
 
 # --- Date input and display ---
 st.header("ใส่ข้อมูล")
-col_date_picker, col_date_display, _ = st.columns([1, 1, 3])
+col_date_picker, col_date_display = st.columns([1, 4])
 with col_date_picker:
     selected_date = st.date_input("เลือกวันที่", st.session_state.current_date)
 with col_date_display:
@@ -219,47 +240,13 @@ with col4:
 
 st.header("ตารางก๊วน")
 
-# Use a custom layout for the table to enable buttons
-col_widths = [1, 1, 1, 1] + [1, 1, 1] * 20
-header_cols = st.columns(col_widths)
-for i, col_name in enumerate(headers):
-    if i < 4:
-        header_cols[i].write(col_name)
-    elif i >= 4:
-        header_cols[4 + (i-4)*3].write(col_name)
-
-def update_slash_count(row_idx, col_name, value):
-    """Callback function to update the DataFrame when a button is clicked."""
-    current_value = st.session_state.df.at[row_idx, col_name]
-    if value == 1:
-        st.session_state.df.at[row_idx, col_name] += 'l'
-    elif value == -1 and len(current_value) > 0:
-        st.session_state.df.at[row_idx, col_name] = current_value[:-1]
-    
-for idx in range(len(st.session_state.df)):
-    row_data = st.session_state.df.iloc[idx]
-    cols = st.columns(col_widths)
-    
-    cols[0].text_input("", value=row_data['Name'], key=f"name_{idx}", label_visibility="hidden")
-    cols[1].text_input("", value=row_data['Time'], key=f"time_{idx}", label_visibility="hidden")
-    cols[2].write(row_data['Total /'])
-    cols[3].write(row_data['Price'])
-    
-    for game_idx in range(4, 24):
-        col_name = headers[game_idx]
-        game_value = row_data[col_name]
-        
-        game_cols = cols[4 + (game_idx - 4) * 3 : 4 + (game_idx - 4) * 3 + 3]
-        
-        with game_cols[0]:
-            st.button("-", key=f"minus_{idx}_{game_idx}", on_click=update_slash_count, args=(idx, col_name, -1))
-        with game_cols[1]:
-            st.markdown(f'<div style="text-align: center;">{game_value}</div>', unsafe_allow_html=True)
-        with game_cols[2]:
-            st.button("+", key=f"plus_{idx}_{game_idx}", on_click=update_slash_count, args=(idx, col_name, 1))
+edited_df = st.data_editor(st.session_state.df, num_rows="dynamic", use_container_width=True, key="main_data_editor")
 
 if st.button("Calculate"):
+    st.session_state.df = edited_df
+
     st.session_state.warning_message = ""
+
     df_to_process = st.session_state.df.fillna('')
 
     dynamic_last_row_to_process = 0
@@ -293,8 +280,9 @@ if st.button("Calculate"):
         )
         st.session_state.df = updated_df
         st.session_state.results = results
-        st.rerun()
 
+        st.rerun()
+        
 if st.session_state.warning_message:
     st.warning(st.session_state.warning_message)
 
