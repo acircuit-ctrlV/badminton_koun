@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 import io
 from datetime import date
@@ -94,7 +93,6 @@ def process_table_data(table_data_df, shuttle_val, walkin_val, court_val, real_s
     updated_table_df = pd.DataFrame(processed_data, columns=table_data_df.columns)
     return updated_table_df, results
 
-
 def dataframe_to_image(df, date_text=""):
     """
     Converts a pandas DataFrame to a Pillow Image object with aligned columns,
@@ -140,10 +138,8 @@ def dataframe_to_image(df, date_text=""):
     x_offset = 20
     y_offset = 20
     
-    # Draw title
+    # Draw title and date on the left
     draw.text((x_offset, y_offset), title_text, font=title_font, fill='black')
-    
-    # Draw the date
     date_x = x_offset + title_font.getbbox(title_text)[2] + 20
     date_y = y_offset + (title_height - (font.getbbox(date_text)[3] - font.getbbox(date_text)[1])) / 2
     draw.text((date_x, date_y), date_text, font=font, fill='black')
@@ -238,15 +234,52 @@ with col3:
 with col4:
     real_shuttle_val = st.number_input("ค่าลูกตามจริง:", value=0, step=1)
 
+
 st.header("ตารางก๊วน")
 
-edited_df = st.data_editor(st.session_state.df, num_rows="dynamic", use_container_width=True, key="main_data_editor")
+# --- Function to handle button clicks and update the DataFrame ---
+def update_slash_count(row_idx, col_name, value):
+    """Callback function to update the DataFrame when a button is clicked."""
+    current_value = st.session_state.df.at[row_idx, col_name]
+    if value == 1:
+        st.session_state.df.at[row_idx, col_name] += 'l'
+    elif value == -1 and len(current_value) > 0:
+        st.session_state.df.at[row_idx, col_name] = current_value[:-1]
+    
+# Create a header row for the table
+header_cols = st.columns([1, 1, 1, 1] + [0.5, 0.5] * 20)
+for i, col_name in enumerate(headers):
+    if i < 4:
+        header_cols[i].write(col_name)
 
+# Loop through each player to create a row of widgets
+for idx in range(len(st.session_state.df)):
+    row_data = st.session_state.df.iloc[idx].copy()
+    
+    cols = st.columns([1, 1, 1, 1] + [0.5, 0.5] * 20)
+
+    # Display "Name", "Time", "Total /", "Price" as text
+    cols[0].write(row_data['Name'])
+    cols[1].write(row_data['Time'])
+    cols[2].write(row_data['Total /'])
+    cols[3].write(row_data['Price'])
+
+    # Display plus/minus buttons for "game1" to "game20"
+    for game_idx in range(4, 24):
+        col_name = headers[game_idx]
+        plus_col = cols[4 + (game_idx - 4) * 2]
+        minus_col = cols[4 + (game_idx - 4) * 2 + 1]
+
+        plus_col.button("+", key=f"plus_{idx}_{game_idx}", on_click=update_slash_count, args=(idx, col_name, 1))
+        minus_col.button("-", key=f"minus_{idx}_{game_idx}", on_click=update_slash_count, args=(idx, col_name, -1))
+        
+        # Display the 'l' count
+        game_value = row_data[col_name]
+        cols[4 + (game_idx - 4) * 2 + 1].markdown(f'<div style="text-align: center;">{game_value}</div>', unsafe_allow_html=True)
+    
+# This button is now needed to run the calculation on the updated session state
 if st.button("Calculate"):
-    st.session_state.df = edited_df
-
     st.session_state.warning_message = ""
-
     df_to_process = st.session_state.df.fillna('')
 
     dynamic_last_row_to_process = 0
@@ -280,8 +313,7 @@ if st.button("Calculate"):
         )
         st.session_state.df = updated_df
         st.session_state.results = results
-
-        st.rerun()
+        st.experimental_rerun()
         
 if st.session_state.warning_message:
     st.warning(st.session_state.warning_message)
