@@ -158,7 +158,7 @@ def dataframe_to_image(df, date_text=""):
     ]
     draw.rectangle(box_coords, outline="red", width=2)
     
-    y_offset_start = y_offset + title_height + 10
+    y_offset_start = y_offset + title_height + 5
     y_offset = y_offset_start
     
     # Draw headers
