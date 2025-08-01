@@ -191,8 +191,6 @@ if 'warning_message' not in st.session_state:
     st.session_state.warning_message = ""
 if 'current_date' not in st.session_state:
     st.session_state.current_date = date.today()
-if 'edited_df_state' not in st.session_state:
-    st.session_state.edited_df_state = st.session_state.df.copy()
 
 st.title("คิดเงินค่าตีก๊วน")
 
@@ -219,35 +217,59 @@ with col4:
 
 st.header("ตารางก๊วน")
 
-# Use a data editor for the table
-edited_df = st.data_editor(
-    st.session_state.df,
-    num_rows="dynamic",
-    use_container_width=True,
-    key="main_data_editor",
-)
-
-# A button to trigger calculation and apply the '+' '-' logic
-if st.button("Calculate"):
-    st.session_state.df = edited_df.copy()
-
-    # Process the new '+' and '-' inputs
-    df_to_process = st.session_state.df.fillna('')
-    for idx, row in df_to_process.iterrows():
-        for col_name in headers[4:]:
-            cell_value = str(row[col_name])
-            if '+' in cell_value:
-                # Add an 'l' and remove the '+'
-                df_to_process.at[idx, col_name] = cell_value.replace('+', '') + 'l'
-            elif '-' in cell_value and len(cell_value.replace('-', '')) > 0:
-                # Remove an 'l' and the '-'
-                df_to_process.at[idx, col_name] = cell_value.replace('-', '')[:-1]
+# --- Custom table creation with columns and buttons ---
+# Function to handle button clicks and update the DataFrame
+def update_slash_count(row_idx, col_name, value):
+    """Callback function to update the DataFrame when a button is clicked."""
+    current_value = st.session_state.df.at[row_idx, col_name]
+    if value == 1:
+        st.session_state.df.at[row_idx, col_name] += 'l'
+    elif value == -1 and len(current_value) > 0:
+        st.session_state.df.at[row_idx, col_name] = current_value[:-1]
     
-    st.session_state.df = df_to_process.copy()
+# Use a custom layout for the table to enable buttons
+col_widths = [1, 1, 1, 1] + [1, 1, 1] * 20 # adjust column widths
+header_cols = st.columns(col_widths)
+for i, col_name in enumerate(headers):
+    # Adjust header placement to match the columns
+    if i < 4:
+        header_cols[i].write(col_name)
+    elif i >= 4:
+        header_cols[4 + (i-4)*3].write(col_name)
+
+# Loop through each player to create a row of widgets
+for idx in range(len(st.session_state.df)):
+    row_data = st.session_state.df.iloc[idx]
+    
+    cols = st.columns(col_widths)
+
+    # Display "Name", "Time", "Total /", "Price" as text
+    cols[0].text_input("Name", value=row_data['Name'], key=f"name_{idx}", label_visibility="hidden")
+    cols[1].text_input("Time", value=row_data['Time'], key=f"time_{idx}", label_visibility="hidden")
+    cols[2].write(row_data['Total /'])
+    cols[3].write(row_data['Price'])
+
+    # Display plus/minus buttons for "game1" to "game20"
+    for game_idx in range(4, 24):
+        col_name = headers[game_idx]
+        game_value = row_data[col_name]
+        
+        game_cols = cols[4 + (game_idx - 4) * 3 : 4 + (game_idx - 4) * 3 + 3]
+        
+        with game_cols[0]:
+            st.button("-", key=f"minus_{idx}_{game_idx}", on_click=update_slash_count, args=(idx, col_name, -1))
+        with game_cols[1]:
+            st.markdown(f'<div style="text-align: center;">{game_value}</div>', unsafe_allow_html=True)
+        with game_cols[2]:
+            st.button("+", key=f"plus_{idx}_{game_idx}", on_click=update_slash_count, args=(idx, col_name, 1))
+        
+# This button is now needed to run the calculation on the updated session state
+if st.button("Calculate"):
     st.session_state.warning_message = ""
+    df_to_process = st.session_state.df.fillna('')
 
     dynamic_last_row_to_process = 0
-    for idx, row in st.session_state.df.iterrows():
+    for idx, row in df_to_process.iterrows():
         if str(row['Name']).strip():
             dynamic_last_row_to_process = idx + 1
 
@@ -256,12 +278,12 @@ if st.button("Calculate"):
         st.session_state.results = None
     else:
         invalid_columns = []
-        if len(st.session_state.df.columns) >= 24:
+        if len(df_to_process.columns) >= 24:
             for col_idx in range(4, 24):
-                if col_idx < len(st.session_state.df.columns):
-                    total_slashes_in_column = st.session_state.df.iloc[:dynamic_last_row_to_process, col_idx].astype(str).str.count('l').sum()
+                if col_idx < len(df_to_process.columns):
+                    total_slashes_in_column = df_to_process.iloc[:dynamic_last_row_to_process, col_idx].astype(str).str.count('l').sum()
                     if total_slashes_in_column % 4 != 0:
-                        invalid_columns.append(st.session_state.df.columns[col_idx])
+                        invalid_columns.append(df_to_process.columns[col_idx])
         else:
             st.session_state.warning_message = "The table does not have enough columns for full game data validation (expected at least 24 columns for 'game1' to 'game20')."
 
@@ -272,13 +294,13 @@ if st.button("Calculate"):
                 st.session_state.warning_message = f"Game ที่ลูกเเบดไม่ลงตัว: {', '.join(invalid_columns)}"
 
         updated_df, results = process_table_data(
-            st.session_state.df, shuttle_val, walkin_val, court_val, real_shuttle_val,
+            df_to_process, shuttle_val, walkin_val, court_val, real_shuttle_val,
             last_row_to_process=dynamic_last_row_to_process
         )
         st.session_state.df = updated_df
         st.session_state.results = results
         st.rerun()
-
+        
 if st.session_state.warning_message:
     st.warning(st.session_state.warning_message)
 
