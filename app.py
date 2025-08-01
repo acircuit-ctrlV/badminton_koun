@@ -8,55 +8,78 @@ from datetime import date
 # --- Excel Processing Logic ---
 def process_table_data(table_data_df, shuttle_val, walkin_val, court_val, real_shuttle_val, last_row_to_process):
     """
-    Processes the DataFrame: sums counts, performs calculations,
+    Processes the DataFrame: counts slashes, performs calculations,
     and returns updated DataFrame and results.
     """
-    processed_data_df = table_data_df.copy()
+    # Convert DataFrame to a list of lists for easier cell-level manipulation
+    processed_data_list = table_data_df.values.tolist()
+    processed_data = [list(row) for row in processed_data_list]
 
     total_shuttlecock_grand = 0
 
+    # Loop through rows up to dynamic_last_row_to_process
     for i in range(last_row_to_process):
-        if i >= len(processed_data_df):
-            break
+        if i >= len(processed_data):
+            break  # Stop if we exceed the actual number of rows
 
-        name_cell_value = str(processed_data_df.loc[i, 'Name']).strip()
+        name_cell_value = str(processed_data[i][0]).strip()
         if not name_cell_value:
-            processed_data_df.loc[i, 'Total /'] = ''
-            processed_data_df.loc[i, 'Price'] = ''
+            # Clear calculated fields for empty name rows
+            if 2 < len(processed_data[i]):
+                processed_data[i][2] = ''
+            if 3 < len(processed_data[i]):
+                processed_data[i][3] = ''
             continue
 
+        # --- CHANGE: Counting 'l' instead of '/' ---
         total_row_slashes = 0
+        # Iterate through game columns (indices 4 to 23)
         for col_idx in range(4, 24):
-            col_name = processed_data_df.columns[col_idx]
-            try:
-                # Sum the integer values directly
-                total_row_slashes += int(processed_data_df.loc[i, col_name])
-            except (ValueError, TypeError):
-                # Handle empty or non-numeric cells gracefully
-                pass
+            if col_idx < len(processed_data[i]):  # Ensure column exists for the current row
+                cell_value = str(processed_data[i][col_idx])
+                total_row_slashes += cell_value.count('l')
 
         total_shuttlecock_grand += total_row_slashes
-        processed_data_df.loc[i, 'Total /'] = total_row_slashes
-        processed_data_df.loc[i, 'Price'] = (total_row_slashes * shuttle_val) + walkin_val
 
-    while len(processed_data_df) < 23:
-        new_row = pd.Series([''] * len(processed_data_df.columns), index=processed_data_df.columns)
-        processed_data_df = pd.concat([processed_data_df, new_row.to_frame().T], ignore_index=True)
+        # Update 'Total /' column (index 2)
+        if 2 < len(processed_data[i]):
+            processed_data[i][2] = total_row_slashes
+        else:
+            # Extend row if it's too short for this column
+            while len(processed_data[i]) <= 2:
+                processed_data[i].append('')
+            processed_data[i][2] = total_row_slashes
 
-    sum_d = 0
-    sum_e = 0
+        # Update 'Price' column (index 3)
+        if 3 < len(processed_data[i]):
+            processed_data[i][3] = (total_row_slashes * shuttle_val) + walkin_val
+        else:
+            # Extend row if it's too short for this column
+            while len(processed_data[i]) <= 3:
+                processed_data[i].append('')
+            processed_data[i][3] = (total_row_slashes * walkin_val) + walkin_val
+
+    # Ensure enough rows exist for calculations at row 22 and 23 (indices 21 and 22)
+    while len(processed_data) < 23:
+        processed_data.append([''] * len(table_data_df.columns))
+
+    sum_d = 0  # Sum of 'Total /' column
+    sum_e = 0  # Sum of 'Price' column
     for i in range(0, last_row_to_process):
-        if i < len(processed_data_df):
-            if str(processed_data_df.loc[i, 'Name']).strip():
-                try:
-                    sum_d += float(processed_data_df.loc[i, 'Total /'])
-                except (ValueError, TypeError):
-                    pass
-                try:
-                    sum_e += float(processed_data_df.loc[i, 'Price'])
-                except (ValueError, TypeError):
-                    pass
+        if i < len(processed_data):  # Ensure row exists
+            if str(processed_data[i][0]).strip():  # Only sum if 'Name' column is not empty
+                if 2 < len(processed_data[i]):  # Check if 'Total /' column exists
+                    try:
+                        sum_d += float(processed_data[i][2])
+                    except (ValueError, TypeError):
+                        pass  # Ignore if value is not a number
+                if 3 < len(processed_data[i]):  # Check if 'Price' column exists
+                    try:
+                        sum_e += float(processed_data[i][3])
+                    except (ValueError, TypeError):
+                        pass  # Ignore if value is not a number
 
+    # New calculations from the VBA code
     old_solution_sum = ((total_shuttlecock_grand / 4) * real_shuttle_val) + court_val
 
     results = {
@@ -64,10 +87,12 @@ def process_table_data(table_data_df, shuttle_val, walkin_val, court_val, real_s
         "old_solution_sum": old_solution_sum,
         "net_price_sum": sum_e,
         "new_solution_minus_old_solution": sum_e - old_solution_sum,
-        "sum_D": sum_d
+        "sum_D": sum_d  # This is the sum of 'Total /' column
     }
 
-    return processed_data_df, results
+    # Convert the processed list of lists back to a DataFrame
+    updated_table_df = pd.DataFrame(processed_data, columns=table_data_df.columns)
+    return updated_table_df, results
 
 
 def dataframe_to_image(df, date_text=""):
@@ -84,18 +109,23 @@ def dataframe_to_image(df, date_text=""):
         font = ImageFont.load_default()
         title_font = ImageFont.load_default()
 
+    # Calculate column widths based on the maximum width of text in each column
     column_widths = {}
     for col in df.columns:
+        # Get the width of the column header
         header_width = font.getbbox(str(col))[2]
+        # Get the max width of all cell values in the column
         max_value_width = max([font.getbbox(str(item))[2] for item in df[col]]) if not df[col].empty else 0
         column_widths[col] = max(header_width, max_value_width)
 
+    # Add some padding to each column
     column_padding = 10
     total_width = sum(column_widths.values()) + (len(column_widths) + 1) * column_padding
     
+    # Calculate image dimensions
     line_height = font.getbbox("A")[3] - font.getbbox("A")[1]
     header_height = line_height + column_padding
-    row_height = line_height + 5
+    row_height = line_height + 5  # Add a little extra space for rows
     
     title_text = "ตารางก๊วน"
     title_height = title_font.getbbox(title_text)[3] - title_font.getbbox(title_text)[1]
@@ -103,18 +133,22 @@ def dataframe_to_image(df, date_text=""):
     img_width = total_width + 40
     img_height = title_height + line_height + 20 + header_height + (len(df) * row_height) + 40
     
+    # Create the image
     img = Image.new('RGB', (img_width, img_height), color='white')
     draw = ImageDraw.Draw(img)
     
     x_offset = 20
     y_offset = 20
     
+    # Draw title
     draw.text((x_offset, y_offset), title_text, font=title_font, fill='black')
     
+    # Draw the date
     date_x = x_offset + title_font.getbbox(title_text)[2] + 20
     date_y = y_offset + (title_height - (font.getbbox(date_text)[3] - font.getbbox(date_text)[1])) / 2
     draw.text((date_x, date_y), date_text, font=font, fill='black')
     
+    # Draw the red box around the date
     box_padding = 5
     box_coords = [
         date_x - box_padding,
@@ -127,6 +161,7 @@ def dataframe_to_image(df, date_text=""):
     y_offset_start = y_offset + title_height + 5
     y_offset = y_offset_start
     
+    # Draw headers
     current_x = x_offset
     for col in df.columns:
         draw.text((current_x, y_offset), str(col), font=font, fill='black')
@@ -134,6 +169,7 @@ def dataframe_to_image(df, date_text=""):
         
     y_offset += header_height
     
+    # Draw data rows
     for _, row in df.iterrows():
         current_x = x_offset
         for col in df.columns:
@@ -152,24 +188,23 @@ headers = ["Name", "Time", "Total /", "Price", "game1", "game2", "game3", "game4
            "game6", "game7", "game8", "game9", "game10", "game11", "game12", "game13",
            "game14", "game15", "game16", "game17", "game18", "game19", "game20"]
 
-# Initialize initial data with numbers for game columns
 initial_data_list = [
-    ["is", "18:00", "", "", 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    ["ploy", "18:00", "", "", 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    ["mart", "18:00", "", "", 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    ["voy", "18:00", "", "", 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    ["jump", "18:00", "", "", 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    ["tong", "18:00", "", "", 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    ["k", "18:00", "", "", 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    ["song", "18:00", "", "", 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    ["nice", "18:00", "", "", 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    ["nut", "18:00", "", "", 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    ["temp", "18:00", "", "", 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    ["pin", "18:00", "", "", 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    ["is", "18:00", "", "", "l", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
+    ["ploy", "18:00", "", "", "l", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
+    ["mart", "18:00", "", "", "", "l", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
+    ["voy", "18:00", "", "", "", "l", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
+    ["jump", "18:00", "", "", "", "", "l", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
+    ["tong", "18:00", "", "", "", "", "l", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
+    ["k", "18:00", "", "", "", "", "l", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
+    ["song", "18:00", "", "", "", "", "l", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
+    ["nice", "18:00", "", "", "", "l", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
+    ["nut", "18:00", "", "", "l", "l", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
+    ["temp", "18:00", "", "", "l", "l", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
+    ["pin", "18:00", "", "", "l", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""]
 ]
 for row in initial_data_list:
     while len(row) < len(headers):
-        row.append(0)
+        row.append("")
 
 if 'df' not in st.session_state:
     st.session_state.df = pd.DataFrame(initial_data_list, columns=headers)
@@ -182,6 +217,7 @@ if 'current_date' not in st.session_state:
 
 st.title("คิดเงินค่าตีก๊วน")
 
+# --- Date input and display ---
 st.header("ใส่ข้อมูล")
 col_date_picker, col_date_display = st.columns([1, 4])
 with col_date_picker:
@@ -191,6 +227,7 @@ with col_date_display:
     date_to_display = st.session_state.current_date.strftime("%d/%m/%Y")
     st.markdown(f'<div style="border:2px solid red; padding:5px; margin-top:20px;">{date_to_display}</div>', unsafe_allow_html=True)
 
+# --- Input Parameters ---
 col1, col2, col3, col4 = st.columns(4)
 with col1:
     shuttle_val = st.number_input("ค่าลูก:", value=20, step=1)
@@ -203,101 +240,51 @@ with col4:
 
 st.header("ตารางก๊วน")
 
-dynamic_last_row_to_process = 0
-if not st.session_state.df.empty:
-    for idx, row in st.session_state.df.iterrows():
+edited_df = st.data_editor(st.session_state.df, num_rows="dynamic", use_container_width=True, key="main_data_editor")
+
+if st.button("Calculate"):
+    st.session_state.df = edited_df
+
+    st.session_state.warning_message = ""
+
+    df_to_process = st.session_state.df.fillna('')
+
+    dynamic_last_row_to_process = 0
+    for idx, row in df_to_process.iterrows():
         if str(row['Name']).strip():
             dynamic_last_row_to_process = idx + 1
-num_rows_to_display = max(10, dynamic_last_row_to_process + 5)
 
-def handle_slash_button_click(row_idx, col_name, change_type):
-    if st.session_state.df.empty:
-        return
-    
-    current_value = st.session_state.df.loc[row_idx, col_name]
-    
-    try:
-        current_value = int(current_value)
-    except (ValueError, TypeError):
-        current_value = 0
+    if dynamic_last_row_to_process == 0:
+        st.warning("No names found in the table to process. Please enter data in the 'Name' column.")
+        st.session_state.results = None
+    else:
+        invalid_columns = []
+        if len(df_to_process.columns) >= 24:
+            for col_idx in range(4, 24):
+                if col_idx < len(df_to_process.columns):
+                    total_slashes_in_column = df_to_process.iloc[:dynamic_last_row_to_process, col_idx].astype(str).str.count('l').sum()
+                    if total_slashes_in_column % 4 != 0:
+                        invalid_columns.append(df_to_process.columns[col_idx])
+        else:
+            st.session_state.warning_message = "The table does not have enough columns for full game data validation (expected at least 24 columns for 'game1' to 'game20')."
 
-    if change_type == 'plus':
-        st.session_state.df.loc[row_idx, col_name] = current_value + 1
-    elif change_type == 'minus' and current_value > 0:
-        st.session_state.df.loc[row_idx, col_name] = current_value - 1
+        if invalid_columns:
+            if st.session_state.warning_message:
+                st.session_state.warning_message += f"\n\nAdditionally, the total slash count in the following columns is not divisible by 4: {', '.join(invalid_columns)}"
+            else:
+                st.session_state.warning_message = f"Game ที่ลูกเเบดไม่ลงตัว: {', '.join(invalid_columns)}"
 
-    df_to_process = st.session_state.df.fillna(0)
-
-    temp_last_row = 0
-    if not df_to_process.empty:
-        for idx, row in df_to_process.iterrows():
-            if str(row['Name']).strip():
-                temp_last_row = idx + 1
-    
-    if temp_last_row > 0:
         updated_df, results = process_table_data(
             df_to_process, shuttle_val, walkin_val, court_val, real_shuttle_val,
-            last_row_to_process=temp_last_row
+            last_row_to_process=dynamic_last_row_to_process
         )
         st.session_state.df = updated_df
         st.session_state.results = results
-    
-    st.rerun()
 
-col_widths = [2, 2, 1, 1] + [0.5] * 20
-main_cols = st.columns(col_widths)
-for i, col_name in enumerate(headers):
-    with main_cols[i]:
-        st.write(f"**{col_name}**")
-
-for i in range(num_rows_to_display):
-    if i >= len(st.session_state.df):
-        new_row = pd.Series([''] * 4 + [0] * 20, index=headers)
-        st.session_state.df = pd.concat([st.session_state.df, new_row.to_frame().T], ignore_index=True)
-
-    row = st.session_state.df.iloc[i]
-    row_cols = st.columns(col_widths)
-    
-    with row_cols[0]:
-        st.session_state.df.loc[i, 'Name'] = st.text_input(f"Name_{i}", value=row['Name'], label_visibility="collapsed", key=f"name_input_{i}")
-    with row_cols[1]:
-        st.session_state.df.loc[i, 'Time'] = st.text_input(f"Time_{i}", value=row['Time'], label_visibility="collapsed", key=f"time_input_{i}")
-    
-    with row_cols[2]:
-        st.markdown(f'<div style="text-align: center; height: 38px; display: flex; align-items: center; justify-content: center; background-color: #f0f2f6; border-radius: 5px; border: 1px solid #d4d4d4; margin-bottom: 8px;">{row["Total /"]}</div>', unsafe_allow_html=True)
-    with row_cols[3]:
-        st.markdown(f'<div style="text-align: center; height: 38px; display: flex; align-items: center; justify-content: center; background-color: #f0f2f6; border-radius: 5px; border: 1px solid #d4d4d4; margin-bottom: 8px;">{row["Price"]}</div>', unsafe_allow_html=True)
-
-    for j in range(4, 24):
-        col_name = headers[j]
-        with row_cols[j]:
-            btn_cols = st.columns([1, 1, 1], gap="small")
-            current_count = int(st.session_state.df.loc[i, col_name])
-            
-            with btn_cols[0]:
-                st.button(
-                    "-",
-                    key=f"minus_button_{i}_{j}",
-                    on_click=handle_slash_button_click,
-                    args=(i, col_name, 'minus'),
-                    use_container_width=True
-                )
-            with btn_cols[1]:
-                # Display 'l's as a string
-                st.markdown(f'<div style="text-align: center; height: 38px; display: flex; align-items: center; justify-content: center;">{"l" * current_count}</div>', unsafe_allow_html=True)
-            with btn_cols[2]:
-                st.button(
-                    "+",
-                    key=f"plus_button_{i}_{j}",
-                    on_click=handle_slash_button_click,
-                    args=(i, col_name, 'plus'),
-                    use_container_width=True
-                )
-
-if st.button("Add new row"):
-    new_row = pd.Series([''] * 4 + [0] * 20, index=headers)
-    st.session_state.df = pd.concat([st.session_state.df, new_row.to_frame().T], ignore_index=True)
-    st.rerun()
+        st.rerun()
+        
+if st.session_state.warning_message:
+    st.warning(st.session_state.warning_message)
 
 st.header("สรุป")
 if st.session_state.results:
