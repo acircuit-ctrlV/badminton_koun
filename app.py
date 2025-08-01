@@ -97,8 +97,8 @@ def process_table_data(table_data_df, shuttle_val, walkin_val, court_val, real_s
 
 def dataframe_to_image(df, date_text=""):
     """
-    Converts a pandas DataFrame to a Pillow Image object with aligned columns,
-    and adds a title and a date.
+    Converts a pandas DataFrame to a Pillow Image object with aligned columns
+    and adds a date to the top right.
     """
     try:
         font_path = "THSarabunNew.ttf"
@@ -127,39 +127,29 @@ def dataframe_to_image(df, date_text=""):
     header_height = line_height + column_padding
     row_height = line_height + 5  # Add a little extra space for rows
     
-    title_text = "ตารางก๊วน"
-    title_height = title_font.getbbox(title_text)[3] - title_font.getbbox(title_text)[1]
+    title_height = title_font.getbbox("ตารางก๊วน")[3] - title_font.getbbox("ตารางก๊วน")[1]
     
     img_width = total_width + 40
-    img_height = title_height + line_height + 20 + header_height + (len(df) * row_height) + 40
+    img_height = title_height + 10 + header_height + (len(df) * row_height) + 40
     
     # Create the image
     img = Image.new('RGB', (img_width, img_height), color='white')
     draw = ImageDraw.Draw(img)
     
-    x_offset = 20
-    y_offset = 20
-    
     # Draw title
-    draw.text((x_offset, y_offset), title_text, font=title_font, fill='black')
+    title_text = "ตารางก๊วน"
+    title_x = 20
+    title_y = 20
+    draw.text((title_x, title_y), title_text, font=title_font, fill='black')
     
     # Draw the date
-    date_x = x_offset + title_font.getbbox(title_text)[2] + 20
-    date_y = y_offset + (title_height - (font.getbbox(date_text)[3] - font.getbbox(date_text)[1])) / 2
+    date_x = img_width - 20 - font.getbbox(date_text)[2]
+    date_y = title_y
     draw.text((date_x, date_y), date_text, font=font, fill='black')
     
-    # Draw the red box around the date
-    box_padding = 5
-    box_coords = [
-        date_x - box_padding,
-        y_offset - box_padding,
-        date_x + font.getbbox(date_text)[2] + box_padding,
-        y_offset + title_height + box_padding
-    ]
-    draw.rectangle(box_coords, outline="red", width=2)
-    
-    y_offset_start = y_offset + title_height + 5
+    y_offset_start = title_y + title_height + 10
     y_offset = y_offset_start
+    x_offset = 20
     
     # Draw headers
     current_x = x_offset
@@ -176,6 +166,16 @@ def dataframe_to_image(df, date_text=""):
             draw.text((current_x, y_offset), str(row[col]), font=font, fill='black')
             current_x += column_widths[col] + column_padding
         y_offset += row_height
+    
+    # Draw the red box around the date
+    box_padding = 5
+    box_coords = [
+        date_x - box_padding,
+        date_y - box_padding,
+        img_width - 20 + box_padding,
+        date_y + (font.getbbox(date_text)[3] - font.getbbox(date_text)[1]) + box_padding
+    ]
+    draw.rectangle(box_coords, outline="red", width=2)
     
     buf = io.BytesIO()
     img.save(buf, format="PNG")
@@ -219,13 +219,14 @@ st.title("คิดเงินค่าตีก๊วน")
 
 # --- Date input and display ---
 st.header("ใส่ข้อมูล")
-col_date_picker, col_date_display = st.columns([1, 4])
-with col_date_picker:
+col_date, col_empty = st.columns([1, 4])
+with col_date:
     selected_date = st.date_input("เลือกวันที่", st.session_state.current_date)
-with col_date_display:
-    st.session_state.current_date = selected_date
-    date_to_display = st.session_state.current_date.strftime("%d/%m/%Y")
-    st.markdown(f'<div style="border:2px solid red; padding:5px; margin-top:20px;">{date_to_display}</div>', unsafe_allow_html=True)
+    date_to_display = selected_date.strftime("%d/%m/%Y")
+    st.markdown(f'<div style="border:2px solid red; padding:5px; margin-top:10px;">{date_to_display}</div>', unsafe_allow_html=True)
+
+# Update session state with the new date
+st.session_state.current_date = selected_date
 
 # --- Input Parameters ---
 col1, col2, col3, col4 = st.columns(4)
