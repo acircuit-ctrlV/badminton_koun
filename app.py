@@ -222,7 +222,7 @@ if st.button("Calculate"):
         st.session_state.df = updated_df
         st.session_state.results = results
 
-        st.experimental_rerun()
+        st.rerun()
 
 if st.session_state.warning_message:
     st.warning(st.session_state.warning_message)
