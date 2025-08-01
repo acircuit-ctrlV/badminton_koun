@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 import io
+from datetime import date
 
 # --- Excel Processing Logic ---
 def process_table_data(table_data_df, shuttle_val, walkin_val, court_val, real_shuttle_val, last_row_to_process):
@@ -94,14 +95,20 @@ def process_table_data(table_data_df, shuttle_val, walkin_val, court_val, real_s
     return updated_table_df, results
 
 
-def dataframe_to_image(df):
+def dataframe_to_image(df, date_text=""):
     """
-    Converts a pandas DataFrame to a Pillow Image object with aligned columns.
-    This version uses a default font but calculates column positions to align text.
+    Converts a pandas DataFrame to a Pillow Image object with aligned columns
+    and adds a date to the top right.
     """
-    # Use the default font which is always available
-    font = ImageFont.load_default()
-    
+    try:
+        font_path = "THSarabunNew.ttf"
+        font = ImageFont.truetype(font_path, 20)
+        title_font = ImageFont.truetype(font_path, 28)
+    except IOError:
+        st.warning(f"Font file '{font_path}' not found. Using default font.")
+        font = ImageFont.load_default()
+        title_font = ImageFont.load_default()
+
     # Calculate column widths based on the maximum width of text in each column
     column_widths = {}
     for col in df.columns:
@@ -119,15 +126,30 @@ def dataframe_to_image(df):
     line_height = font.getbbox("A")[3] - font.getbbox("A")[1]
     header_height = line_height + column_padding
     row_height = line_height + 5  # Add a little extra space for rows
+    
+    title_height = title_font.getbbox("ตารางก๊วน")[3] - title_font.getbbox("ตารางก๊วน")[1]
+    
     img_width = total_width + 40
-    img_height = header_height + (len(df) * row_height) + 40
+    img_height = title_height + 10 + header_height + (len(df) * row_height) + 40
     
     # Create the image
     img = Image.new('RGB', (img_width, img_height), color='white')
     draw = ImageDraw.Draw(img)
     
+    # Draw title
+    title_text = "ตารางก๊วน"
+    title_x = 20
+    title_y = 20
+    draw.text((title_x, title_y), title_text, font=title_font, fill='black')
+    
+    # Draw the date
+    date_x = img_width - 20 - font.getbbox(date_text)[2]
+    date_y = title_y
+    draw.text((date_x, date_y), date_text, font=font, fill='black')
+    
+    y_offset_start = title_y + title_height + 10
+    y_offset = y_offset_start
     x_offset = 20
-    y_offset = 20
     
     # Draw headers
     current_x = x_offset
@@ -144,6 +166,16 @@ def dataframe_to_image(df):
             draw.text((current_x, y_offset), str(row[col]), font=font, fill='black')
             current_x += column_widths[col] + column_padding
         y_offset += row_height
+    
+    # Draw the red box around the date
+    box_padding = 5
+    box_coords = [
+        date_x - box_padding,
+        date_y - box_padding,
+        img_width - 20 + box_padding,
+        date_y + (font.getbbox(date_text)[3] - font.getbbox(date_text)[1]) + box_padding
+    ]
+    draw.rectangle(box_coords, outline="red", width=2)
     
     buf = io.BytesIO()
     img.save(buf, format="PNG")
@@ -180,11 +212,23 @@ if 'results' not in st.session_state:
     st.session_state.results = None
 if 'warning_message' not in st.session_state:
     st.session_state.warning_message = ""
+if 'current_date' not in st.session_state:
+    st.session_state.current_date = date.today()
 
 st.title("คิดเงินค่าตีก๊วน")
 
+# --- Date input and display ---
+st.header("ใส่ข้อมูล")
+col_date, col_empty = st.columns([1, 4])
+with col_date:
+    selected_date = st.date_input("เลือกวันที่", st.session_state.current_date)
+    date_to_display = selected_date.strftime("%d/%m/%Y")
+    st.markdown(f'<div style="border:2px solid red; padding:5px; margin-top:10px;">{date_to_display}</div>', unsafe_allow_html=True)
+
+# Update session state with the new date
+st.session_state.current_date = selected_date
+
 # --- Input Parameters ---
-st.header("Input Parameters")
 col1, col2, col3, col4 = st.columns(4)
 with col1:
     shuttle_val = st.number_input("ค่าลูก:", value=20, step=1)
@@ -256,7 +300,8 @@ st.markdown("---")
 st.subheader("Download ตารางตีก๊วน")
 
 if st.session_state.results:
-    image_bytes = dataframe_to_image(st.session_state.df)
+    date_text_for_image = st.session_state.current_date.strftime("%d/%m/%Y")
+    image_bytes = dataframe_to_image(st.session_state.df, date_text_for_image)
 
     st.download_button(
         label="Download Table as Image",
