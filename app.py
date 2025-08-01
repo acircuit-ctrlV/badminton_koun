@@ -89,8 +89,8 @@ def dataframe_to_image(df, date_text=""):
     """
     try:
         font_path = "THSarabunNew.ttf"
-        font = ImageFont.truetype(font_path, 20)
-        title_font = ImageFont.truetype(font_path, 28)
+        font = ImageFont.truetype(font_path, 24)  # Increased font size for content
+        title_font = ImageFont.truetype(font_path, 36) # Increased font size for title
     except IOError:
         st.warning(f"Font file '{font_path}' not found. Using default font.")
         font = ImageFont.load_default()
@@ -102,12 +102,12 @@ def dataframe_to_image(df, date_text=""):
         max_value_width = max([font.getbbox(str(item))[2] for item in df[col]]) if not df[col].empty else 0
         column_widths[col] = max(header_width, max_value_width)
 
-    column_padding = 10
+    column_padding = 20  # Increased padding
     total_width = sum(column_widths.values()) + (len(column_widths) + 1) * column_padding
     
     line_height = font.getbbox("A")[3] - font.getbbox("A")[1]
     header_height = line_height + column_padding
-    row_height = line_height + 5
+    row_height = line_height + 10  # Increased row height
     
     title_text = "ตารางก๊วน"
     title_height = title_font.getbbox(title_text)[3] - title_font.getbbox(title_text)[1]
@@ -191,6 +191,8 @@ if 'warning_message' not in st.session_state:
     st.session_state.warning_message = ""
 if 'current_date' not in st.session_state:
     st.session_state.current_date = date.today()
+if 'edited_df_state' not in st.session_state:
+    st.session_state.edited_df_state = st.session_state.df.copy()
 
 st.title("คิดเงินค่าตีก๊วน")
 
@@ -217,8 +219,15 @@ with col4:
 
 st.header("ตารางก๊วน")
 
-# --- Custom table creation with columns and buttons ---
-# Function to handle button clicks and update the DataFrame
+# Use a custom layout for the table to enable buttons
+col_widths = [1, 1, 1, 1] + [1, 1, 1] * 20
+header_cols = st.columns(col_widths)
+for i, col_name in enumerate(headers):
+    if i < 4:
+        header_cols[i].write(col_name)
+    elif i >= 4:
+        header_cols[4 + (i-4)*3].write(col_name)
+
 def update_slash_count(row_idx, col_name, value):
     """Callback function to update the DataFrame when a button is clicked."""
     current_value = st.session_state.df.at[row_idx, col_name]
@@ -227,29 +236,15 @@ def update_slash_count(row_idx, col_name, value):
     elif value == -1 and len(current_value) > 0:
         st.session_state.df.at[row_idx, col_name] = current_value[:-1]
     
-# Use a custom layout for the table to enable buttons
-col_widths = [1, 1, 1, 1] + [1, 1, 1] * 20 # adjust column widths
-header_cols = st.columns(col_widths)
-for i, col_name in enumerate(headers):
-    # Adjust header placement to match the columns
-    if i < 4:
-        header_cols[i].write(col_name)
-    elif i >= 4:
-        header_cols[4 + (i-4)*3].write(col_name)
-
-# Loop through each player to create a row of widgets
 for idx in range(len(st.session_state.df)):
     row_data = st.session_state.df.iloc[idx]
-    
     cols = st.columns(col_widths)
-
-    # Display "Name", "Time", "Total /", "Price" as text
-    cols[0].text_input("Name", value=row_data['Name'], key=f"name_{idx}", label_visibility="hidden")
-    cols[1].text_input("Time", value=row_data['Time'], key=f"time_{idx}", label_visibility="hidden")
+    
+    cols[0].text_input("", value=row_data['Name'], key=f"name_{idx}", label_visibility="hidden")
+    cols[1].text_input("", value=row_data['Time'], key=f"time_{idx}", label_visibility="hidden")
     cols[2].write(row_data['Total /'])
     cols[3].write(row_data['Price'])
-
-    # Display plus/minus buttons for "game1" to "game20"
+    
     for game_idx in range(4, 24):
         col_name = headers[game_idx]
         game_value = row_data[col_name]
@@ -262,8 +257,7 @@ for idx in range(len(st.session_state.df)):
             st.markdown(f'<div style="text-align: center;">{game_value}</div>', unsafe_allow_html=True)
         with game_cols[2]:
             st.button("+", key=f"plus_{idx}_{game_idx}", on_click=update_slash_count, args=(idx, col_name, 1))
-        
-# This button is now needed to run the calculation on the updated session state
+
 if st.button("Calculate"):
     st.session_state.warning_message = ""
     df_to_process = st.session_state.df.fillna('')
@@ -300,7 +294,7 @@ if st.button("Calculate"):
         st.session_state.df = updated_df
         st.session_state.results = results
         st.rerun()
-        
+
 if st.session_state.warning_message:
     st.warning(st.session_state.warning_message)
 
