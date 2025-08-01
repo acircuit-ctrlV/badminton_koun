@@ -152,13 +152,13 @@ def dataframe_to_image(df, date_text=""):
     box_padding = 5
     box_coords = [
         date_x - box_padding,
-        y_offset - box_padding,
+        date_y - box_padding,
         date_x + font.getbbox(date_text)[2] + box_padding,
-        y_offset + title_height + box_padding
+        date_y + (font.getbbox(date_text)[3] - font.getbbox(date_text)[1]) + box_padding
     ]
     draw.rectangle(box_coords, outline="red", width=2)
     
-    y_offset_start = y_offset + title_height + 5
+    y_offset_start = y_offset + title_height + 10
     y_offset = y_offset_start
     
     # Draw headers
@@ -225,7 +225,7 @@ with col_date_picker:
 with col_date_display:
     st.session_state.current_date = selected_date
     date_to_display = st.session_state.current_date.strftime("%d/%m/%Y")
-    st.markdown(f'<div style="border:2px solid red; padding:5px; margin-top:20px;">{date_to_display}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div style="border:2px solid red; padding:5px; margin-top:20px; width: fit-content;">{date_to_display}</div>', unsafe_allow_html=True)
 
 # --- Input Parameters ---
 col1, col2, col3, col4 = st.columns(4)
