@@ -4,6 +4,11 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 import io
 from datetime import date
+from streamlit_extras.st_autorefresh import st_autorefresh
+
+# --- KEEP THE SESSION ALIVE ---
+# This will rerun the app every 5 minutes to prevent session timeout
+st_autorefresh(interval=5 * 60 * 1000, key="data_refresh_key")
 
 # --- Excel Processing Logic ---
 def process_table_data(table_data_df, shuttle_val, walkin_val, court_val, real_shuttle_val, last_row_to_process):
@@ -225,8 +230,6 @@ initial_data_list = [
     ["temp", "18:00", "", "", "l", "l", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
     ["pin", "18:00", "", "", "l", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""]
 ]
-initial_data_list = [
-    ["", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""]]
 for row in initial_data_list:
     while len(row) < len(headers):
         row.append("")
@@ -371,7 +374,3 @@ if st.session_state.results:
     )
 else:
     st.info("Calculate the results first to enable the download button.")
-
-
-
-
