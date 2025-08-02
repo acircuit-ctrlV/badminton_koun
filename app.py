@@ -91,7 +91,9 @@ def process_table_data(table_data_df, shuttle_val, walkin_val, court_val, real_s
     }
 
     # Convert the processed list of lists back to a DataFrame
-    updated_table_df = pd.DataFrame(processed_data, columns=table_data_df.columns, index=table_data_df.index)
+    # --- MODIFIED: Create a new index based on the length of processed_data ---
+    new_index = np.arange(1, len(processed_data) + 1)
+    updated_table_df = pd.DataFrame(processed_data, columns=table_data_df.columns, index=new_index)
     return updated_table_df, results
 
 
@@ -188,6 +190,20 @@ headers = ["Name", "Time", "Total /", "Price", "game1", "game2", "game3", "game4
            "game6", "game7", "game8", "game9", "game10", "game11", "game12", "game13",
            "game14", "game15", "game16", "game17", "game18", "game19", "game20"]
 
+initial_data_list = [
+    ["is", "18:00", "", "", "l", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
+    ["ploy", "18:00", "", "", "l", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
+    ["mart", "18:00", "", "", "", "l", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
+    ["voy", "18:00", "", "", "", "l", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
+    ["jump", "18:00", "", "", "", "", "l", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
+    ["tong", "18:00", "", "", "", "", "l", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
+    ["k", "18:00", "", "", "", "", "l", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
+    ["song", "18:00", "", "", "", "", "l", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
+    ["nice", "18:00", "", "", "", "l", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
+    ["nut", "18:00", "", "", "l", "l", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
+    ["temp", "18:00", "", "", "l", "l", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
+    ["pin", "18:00", "", "", "l", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""]
+]
 initial_data_list = [
     ["is", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
     ["ploy", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
