@@ -91,7 +91,7 @@ def process_table_data(table_data_df, shuttle_val, walkin_val, court_val, real_s
     }
 
     # Convert the processed list of lists back to a DataFrame
-    updated_table_df = pd.DataFrame(processed_data, columns=table_data_df.columns)
+    updated_table_df = pd.DataFrame(processed_data, columns=table_data_df.columns, index=table_data_df.index)
     return updated_table_df, results
 
 
@@ -189,25 +189,28 @@ headers = ["Name", "Time", "Total /", "Price", "game1", "game2", "game3", "game4
            "game14", "game15", "game16", "game17", "game18", "game19", "game20"]
 
 initial_data_list = [
-    ["is", "18:00", "", "", "l", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
-    ["ploy", "18:00", "", "", "l", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
-    ["mart", "18:00", "", "", "", "l", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
-    ["voy", "18:00", "", "", "", "l", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
-    ["jump", "18:00", "", "", "", "", "l", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
-    ["tong", "18:00", "", "", "", "", "l", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
-    ["k", "18:00", "", "", "", "", "l", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
-    ["song", "18:00", "", "", "", "", "l", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
-    ["nice", "18:00", "", "", "", "l", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
-    ["nut", "18:00", "", "", "l", "l", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
-    ["temp", "18:00", "", "", "l", "l", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
-    ["pin", "18:00", "", "", "l", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""]
+    ["is", "18:00", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
+    ["ploy", "18:00", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
+    ["mart", "18:00", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
+    ["voy", "18:00", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
+    ["jump", "18:00", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
+    ["tong", "18:00", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
+    ["k", "18:00", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
+    ["song", "18:00", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
+    ["nice", "18:00", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
+    ["nut", "18:00", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
+    ["temp", "18:00", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
+    ["pin", "18:00", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""]
 ]
 for row in initial_data_list:
     while len(row) < len(headers):
         row.append("")
 
 if 'df' not in st.session_state:
-    st.session_state.df = pd.DataFrame(initial_data_list, columns=headers)
+    # --- MODIFIED: Create a new DataFrame with a 1-based index ---
+    initial_df = pd.DataFrame(initial_data_list, columns=headers)
+    initial_df.index = np.arange(1, len(initial_df) + 1)
+    st.session_state.df = initial_df
 if 'results' not in st.session_state:
     st.session_state.results = None
 if 'warning_message' not in st.session_state:
@@ -240,7 +243,33 @@ with col4:
 
 st.header("ตารางก๊วน")
 
-edited_df = st.data_editor(st.session_state.df, num_rows="dynamic", use_container_width=True, key="main_data_editor")
+# --- MODIFIED: Adjusted column widths and kept pins ---
+column_configuration = {
+    "_index": st.column_config.Column(
+        "No.",
+        width="small",
+        disabled=True,
+        pinned="left",
+    ),
+    "Name": st.column_config.TextColumn(
+        "Name",
+        width="small",
+        pinned="left",
+    ),
+    "Time": st.column_config.TextColumn(
+        "Time",
+        width="small",
+    ),
+}
+
+edited_df = st.data_editor(
+    st.session_state.df,
+    column_config=column_configuration, # Pass the configuration here
+    num_rows="dynamic",
+    use_container_width=True,
+    key="main_data_editor"
+)
+
 
 if st.button("Calculate"):
     st.session_state.df = edited_df
@@ -252,7 +281,8 @@ if st.button("Calculate"):
     dynamic_last_row_to_process = 0
     for idx, row in df_to_process.iterrows():
         if str(row['Name']).strip():
-            dynamic_last_row_to_process = idx + 1
+            # Use iloc here to handle the custom index
+            dynamic_last_row_to_process = df_to_process.index.get_loc(idx) + 1
 
     if dynamic_last_row_to_process == 0:
         st.warning("No names found in the table to process. Please enter data in the 'Name' column.")
