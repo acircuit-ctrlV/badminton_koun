@@ -242,7 +242,7 @@ if 'warning_message' not in st.session_state:
 if 'current_date' not in st.session_state:
     st.session_state.current_date = date.today()
 
-st.title("คิดเงินค่าตีก๊วน")]
+st.title("คิดเงินค่าตีก๊วน")
 
 st.header("ใส่ข้อมูล")
 col_date_picker, col_date_display = st.columns([1, 4])
@@ -371,6 +371,7 @@ if st.session_state.results:
     )
 else:
     st.info("Calculate the results first to enable the download button.")
+
 
 
 
