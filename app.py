@@ -84,7 +84,7 @@ def process_table_data(table_data_df, shuttle_val, walkin_val, court_val, real_s
 def dataframe_to_image(df, date_text=""):
     """
     Converts a pandas DataFrame to a Pillow Image object with aligned columns,
-    and adds a title and a date.
+    and adds a title and a date. Only includes game columns that have 'l' marks.
     """
     try:
         font_path = "THSarabunNew.ttf"
@@ -235,10 +235,11 @@ if 'main_data_editor' in st.session_state:
     if edited_rows:
         edited_row_key = next(iter(edited_rows))
         try:
+            # Handle both integer and string keys for the index
             row_index = int(edited_row_key) + 1
         except (ValueError, TypeError):
             row_index = edited_row_key
-        
+
         if edited_cols:
             edited_col_name = next(iter(edited_cols))
             st.warning(f"คุณกำลังแก้ไขแถวที่ **{row_index}**, คอลัมน์ **{edited_col_name}**")
@@ -282,6 +283,9 @@ edited_df = st.data_editor(
 )
 
 if st.button("Calculate"):
+    # Ensure all data in the edited_df is processed before cleaning.
+    # The data editor can sometimes have new rows with NaN or None values.
+    # We must handle that.
     cleaned_df = edited_df[edited_df['Name'].astype(str).str.strip() != ''].copy()
     
     cleaned_df.index = np.arange(1, len(cleaned_df) + 1)
