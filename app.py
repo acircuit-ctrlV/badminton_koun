@@ -243,7 +243,6 @@ with col4:
 
 st.header("ตารางก๊วน")
 
-# --- MODIFIED: Added disabled=True for several columns ---
 column_configuration = {
     "_index": st.column_config.Column(
         "No.",
@@ -259,21 +258,20 @@ column_configuration = {
     "Time": st.column_config.TextColumn(
         "Time",
         width="small",
-        disabled=True, # Time is now read-only
+        disabled=True,
     ),
     "Total /": st.column_config.NumberColumn(
         "Total /",
         width="small",
-        disabled=True, # Calculated column is now read-only
+        disabled=True,
     ),
     "Price": st.column_config.NumberColumn(
         "Price",
         width="small",
-        disabled=True, # Calculated column is now read-only
+        disabled=True,
     ),
 }
 
-# Add all "game" columns to the disabled list dynamically
 for i in range(1, 21):
     column_configuration[f"game{i}"] = st.column_config.TextColumn(f"game{i}", width="small", disabled=True)
 
@@ -287,16 +285,20 @@ edited_df = st.data_editor(
 
 
 if st.button("Calculate"):
-    st.session_state.df = edited_df
+    # Filter out rows with empty names before processing
+    cleaned_df = edited_df[edited_df['Name'].astype(str).str.strip() != ''].copy()
+    
+    # Re-index the cleaned DataFrame to maintain a continuous 1-based index
+    cleaned_df.index = np.arange(1, len(cleaned_df) + 1)
+    
+    st.session_state.df = cleaned_df
 
     st.session_state.warning_message = ""
 
     df_to_process = st.session_state.df.fillna('')
 
-    dynamic_last_row_to_process = 0
-    for idx, row in df_to_process.iterrows():
-        if str(row['Name']).strip():
-            dynamic_last_row_to_process = df_to_process.index.get_loc(idx) + 1
+    # This variable now correctly holds the count of all valid rows
+    dynamic_last_row_to_process = len(df_to_process)
 
     if dynamic_last_row_to_process == 0:
         st.warning("No names found in the table to process. Please enter data in the 'Name' column.")
@@ -306,6 +308,7 @@ if st.button("Calculate"):
         if len(df_to_process.columns) >= 24:
             for col_idx in range(4, 24):
                 if col_idx < len(df_to_process.columns):
+                    # The slice df_to_process.iloc[:dynamic_last_row_to_process] now correctly checks all rows
                     total_slashes_in_column = df_to_process.iloc[:dynamic_last_row_to_process, col_idx].astype(str).str.count('l').sum()
                     if total_slashes_in_column % 4 != 0:
                         invalid_columns.append(df_to_process.columns[col_idx])
