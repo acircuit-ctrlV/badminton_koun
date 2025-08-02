@@ -226,7 +226,7 @@ initial_data_list = [
     ["pin", "18:00", "", "", "l", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""]
 ]
 initial_data_list = [
-    ["", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""]
+    ["", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""]]
 for row in initial_data_list:
     while len(row) < len(headers):
         row.append("")
@@ -371,5 +371,6 @@ if st.session_state.results:
     )
 else:
     st.info("Calculate the results first to enable the download button.")
+
 
 
