@@ -15,6 +15,7 @@ def process_table_data(table_data_df, shuttle_val, walkin_val, court_val, real_s
     processed_data = [list(row) for row in processed_data_list]
 
     total_shuttlecock_grand = 0
+    total_games = 0
 
     for i in range(last_row_to_process):
         if i >= len(processed_data):
@@ -50,6 +51,15 @@ def process_table_data(table_data_df, shuttle_val, walkin_val, court_val, real_s
                 processed_data[i].append('')
             processed_data[i][3] = (total_row_slashes * walkin_val) + walkin_val
 
+    for col_idx in range(4, 24):
+        column_contains_slash = False
+        for i in range(last_row_to_process):
+            if col_idx < len(processed_data[i]) and 'l' in str(processed_data[i][col_idx]):
+                column_contains_slash = True
+                break
+        if column_contains_slash:
+            total_games += 1
+
     sum_d = 0
     sum_e = 0
     for i in range(0, last_row_to_process):
@@ -70,6 +80,7 @@ def process_table_data(table_data_df, shuttle_val, walkin_val, court_val, real_s
 
     results = {
         "total_slashes": total_shuttlecock_grand,
+        "total_games": total_games,
         "old_solution_sum": old_solution_sum,
         "net_price_sum": sum_e,
         "new_solution_minus_old_solution": sum_e - old_solution_sum,
@@ -81,32 +92,30 @@ def process_table_data(table_data_df, shuttle_val, walkin_val, court_val, real_s
     return updated_table_df, results
 
 
-def dataframe_to_image(df, date_text=""):
+def dataframe_to_image(df, date_text="", results=None):
     """
     Converts a pandas DataFrame to a Pillow Image object with aligned columns,
-    and adds a title and a date. Only includes game columns that have 'l' marks.
+    and adds a title, a date, and the summary section.
     """
     try:
         font_path = "THSarabunNew.ttf"
         font = ImageFont.truetype(font_path, 20)
         title_font = ImageFont.truetype(font_path, 28)
+        summary_font = ImageFont.truetype(font_path, 22)
     except IOError:
         st.warning(f"Font file '{font_path}' not found. Using default font.")
         font = ImageFont.load_default()
         title_font = ImageFont.load_default()
+        summary_font = ImageFont.load_default()
 
-    # Determine which columns to include in the image.
-    # We will only include the "game" columns that have at least one 'l'.
     game_columns = [col for col in df.columns if col.startswith('game')]
     columns_to_include = ["Name", "Time", "Total /", "Price"]
     for col in game_columns:
         if df[col].astype(str).str.contains('l').any():
             columns_to_include.append(col)
 
-    # Create a new DataFrame with only the selected columns.
     df_for_image = df[columns_to_include].copy()
-
-    # Recalculate column widths based on the new DataFrame
+    
     column_widths = {}
     for col in df_for_image.columns:
         header_width = font.getbbox(str(col))[2]
@@ -123,8 +132,20 @@ def dataframe_to_image(df, date_text=""):
     title_text = "ตารางก๊วน"
     title_height = title_font.getbbox(title_text)[3] - title_font.getbbox(title_text)[1]
     
+    summary_text = ""
+    summary_height = 0
+    if results:
+        summary_text = (
+            f"สรุป:\n"
+            f"จำนวนเกมที่เล่น: {results['total_games']}\n"
+            f"จำนวนลูกเเบดที่ใช้ทั้งหมด: {results['total_slashes']/4:.2f} units"
+        )
+        summary_lines = summary_text.split('\n')
+        summary_line_height = summary_font.getbbox("A")[3] - summary_font.getbbox("A")[1]
+        summary_height = len(summary_lines) * (summary_line_height + 5) + 20
+
     img_width = total_width + 40
-    img_height = title_height + line_height + 20 + header_height + (len(df_for_image) * row_height) + 40
+    img_height = title_height + line_height + 20 + header_height + (len(df_for_image) * row_height) + 40 + summary_height
     
     img = Image.new('RGB', (img_width, img_height), color='white')
     draw = ImageDraw.Draw(img)
@@ -137,16 +158,7 @@ def dataframe_to_image(df, date_text=""):
     date_x = x_offset + title_font.getbbox(title_text)[2] + 20
     date_y = y_offset + (title_height - (font.getbbox(date_text)[3] - font.getbbox(date_text)[1])) / 2
     draw.text((date_x, date_y), date_text, font=font, fill='black')
-    
-    box_padding = 5
-    box_coords = [
-        date_x - box_padding,
-        date_y - box_padding,
-        date_x + font.getbbox(date_text)[2] + box_padding,
-        date_y + (font.getbbox(date_text)[3] - font.getbbox(date_text)[1]) + box_padding
-    ]
-    draw.rectangle(box_coords, outline="red", width=2)
-    
+
     y_offset_start = y_offset + title_height + 10
     y_offset = y_offset_start
     
@@ -164,6 +176,15 @@ def dataframe_to_image(df, date_text=""):
             current_x += column_widths[col] + column_padding
         y_offset += row_height
     
+    # Draw the summary section
+    if results:
+        y_offset += 20  # Add a little space between table and summary
+        summary_lines = summary_text.split('\n')
+        for line in summary_lines:
+            draw.text((x_offset, y_offset), line, font=summary_font, fill='black')
+            summary_line_height = summary_font.getbbox("A")[3] - summary_font.getbbox("A")[1]
+            y_offset += summary_line_height + 5
+            
     buf = io.BytesIO()
     img.save(buf, format="PNG")
     buf.seek(0)
@@ -213,7 +234,7 @@ with col_date_picker:
 with col_date_display:
     st.session_state.current_date = selected_date
     date_to_display = st.session_state.current_date.strftime("%d/%m/%Y")
-    st.markdown(f'<div style="border:2px solid red; padding:5px; margin-top:20px; width: fit-content;">{date_to_display}</div>', unsafe_allow_html=True)
+    # st.markdown(f'<div style="border:2px solid red; padding:5px; margin-top:20px; width: fit-content;">{date_to_display}</div>', unsafe_allow_html=True)
 
 col1, col2, col3, col4 = st.columns(4)
 with col1:
@@ -227,24 +248,23 @@ with col4:
 
 st.header("ตารางก๊วน")
 
-# Check for edits to display a message
-if 'main_data_editor' in st.session_state:
-    edited_rows = st.session_state.main_data_editor.get('edited_rows', {})
-    edited_cols = st.session_state.main_data_editor.get('edited_columns', {})
+# The code to display the warning message has been removed.
+# if 'main_data_editor' in st.session_state:
+#     edited_rows = st.session_state.main_data_editor.get('edited_rows', {})
+#     edited_cols = st.session_state.main_data_editor.get('edited_columns', {})
 
-    if edited_rows:
-        edited_row_key = next(iter(edited_rows))
-        try:
-            # Handle both integer and string keys for the index
-            row_index = int(edited_row_key) + 1
-        except (ValueError, TypeError):
-            row_index = edited_row_key
+#     if edited_rows:
+#         edited_row_key = next(iter(edited_rows))
+#         try:
+#             row_index = int(edited_row_key) + 1
+#         except (ValueError, TypeError):
+#             row_index = edited_row_key
 
-        if edited_cols:
-            edited_col_name = next(iter(edited_cols))
-            st.warning(f"คุณกำลังแก้ไขแถวที่ **{row_index}**, คอลัมน์ **{edited_col_name}**")
-        else:
-            st.warning(f"คุณกำลังแก้ไขแถวที่ **{row_index}**")
+#         if edited_cols:
+#             edited_col_name = next(iter(edited_cols))
+#             st.warning(f"คุณกำลังแก้ไขแถวที่ **{row_index}**, คอลัมน์ **{edited_col_name}**")
+#         else:
+#             st.warning(f"คุณกำลังแก้ไขแถวที่ **{row_index}**")
 
 column_configuration = {
     "_index": st.column_config.Column(
@@ -283,9 +303,6 @@ edited_df = st.data_editor(
 )
 
 if st.button("Calculate"):
-    # Ensure all data in the edited_df is processed before cleaning.
-    # The data editor can sometimes have new rows with NaN or None values.
-    # We must handle that.
     cleaned_df = edited_df[edited_df['Name'].astype(str).str.strip() != ''].copy()
     
     cleaned_df.index = np.arange(1, len(cleaned_df) + 1)
@@ -332,10 +349,11 @@ if st.session_state.warning_message:
 
 st.header("สรุป")
 if st.session_state.results:
-    st.write(f"**จำนวนลูกเเบดที่ใช้ทั้งหมด:** {st.session_state.results['total_slashes']/4} units")
-    st.write(f"**คิดราคาเเบบเก่า:** {st.session_state.results['old_solution_sum']}")
-    st.write(f"**คิดราคาเเบบใหม่:** {st.session_state.results['net_price_sum']}")
-    st.write(f"**ราคาใหม่ - ราคาเก่า:** {st.session_state.results['new_solution_minus_old_solution']}")
+    st.write(f"**จำนวนเกมที่เล่น:** {st.session_state.results['total_games']}")
+    st.write(f"**จำนวนลูกเเบดที่ใช้ทั้งหมด:** {st.session_state.results['total_slashes']/4:.2f} units")
+    st.write(f"**คิดราคาเเบบเก่า:** {st.session_state.results['old_solution_sum']:.2f}")
+    st.write(f"**คิดราคาเเบบใหม่:** {st.session_state.results['net_price_sum']:.2f}")
+    st.write(f"**ราคาใหม่ - ราคาเก่า:** {st.session_state.results['new_solution_minus_old_solution']:.2f}")
 elif st.session_state.results is None and not st.session_state.warning_message:
     st.write("No calculations performed yet or no valid data to process.")
 
@@ -344,7 +362,7 @@ st.subheader("Download ตารางตีก๊วน")
 
 if st.session_state.results:
     date_text_for_image = st.session_state.current_date.strftime("%d/%m/%Y")
-    image_bytes = dataframe_to_image(st.session_state.df, date_text_for_image)
+    image_bytes = dataframe_to_image(st.session_state.df, date_text_for_image, results=st.session_state.results)
 
     st.download_button(
         label="Download Table as Image",
