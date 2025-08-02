@@ -117,7 +117,16 @@ def dataframe_to_image(df, date_text="", results=None):
     df_for_image = df[columns_to_include].copy()
     
     column_widths = {}
-    for col in df_for_image.columns:
+    
+    # Calculate dynamic width for 'No.' (index) and 'Name' columns
+    max_index_width = font.getbbox(str(df_for_image.index.max()))[2]
+    column_widths['No.'] = max(font.getbbox('No.')[2], max_index_width)
+
+    max_name_width = max([font.getbbox(str(item))[2] for item in df_for_image['Name']]) if not df_for_image['Name'].empty else 0
+    column_widths['Name'] = max(font.getbbox('Name')[2], max_name_width)
+
+    # Calculate width for other columns
+    for col in [c for c in df_for_image.columns if c not in ['Name']]:
         header_width = font.getbbox(str(col))[2]
         max_value_width = max([font.getbbox(str(item))[2] for item in df_for_image[col]]) if not df_for_image[col].empty else 0
         column_widths[col] = max(header_width, max_value_width)
@@ -137,8 +146,8 @@ def dataframe_to_image(df, date_text="", results=None):
     if results:
         summary_text = (
             f"สรุป:\n"
-            f"จำนวนเกมที่เล่น: {results['total_games']}\n"
-            f"จำนวนลูกเเบดที่ใช้ทั้งหมด: {results['total_slashes']/4:.2f} units"
+            f"จำนวนเกมที่เล่น: {results['total_games']} เกม\n"
+            f"จำนวนลูกเเบดที่ใช้ทั้งหมด: {results['total_slashes']/4:.2f} ลูก"
         )
         summary_lines = summary_text.split('\n')
         summary_line_height = summary_font.getbbox("A")[3] - summary_font.getbbox("A")[1]
@@ -162,15 +171,21 @@ def dataframe_to_image(df, date_text="", results=None):
     y_offset_start = y_offset + title_height + 10
     y_offset = y_offset_start
     
+    # Draw header
     current_x = x_offset
+    draw.text((current_x, y_offset), "No.", font=font, fill='black')
+    current_x += column_widths['No.'] + column_padding
     for col in df_for_image.columns:
         draw.text((current_x, y_offset), str(col), font=font, fill='black')
         current_x += column_widths[col] + column_padding
         
     y_offset += header_height
     
-    for _, row in df_for_image.iterrows():
+    # Draw rows
+    for index, row in df_for_image.iterrows():
         current_x = x_offset
+        draw.text((current_x, y_offset), str(index), font=font, fill='black')
+        current_x += column_widths['No.'] + column_padding
         for col in df_for_image.columns:
             draw.text((current_x, y_offset), str(row[col]), font=font, fill='black')
             current_x += column_widths[col] + column_padding
@@ -247,24 +262,6 @@ with col4:
     real_shuttle_val = st.number_input("ค่าลูกตามจริง:", value=0, step=1)
 
 st.header("ตารางก๊วน")
-
-# The code to display the warning message has been removed.
-# if 'main_data_editor' in st.session_state:
-#     edited_rows = st.session_state.main_data_editor.get('edited_rows', {})
-#     edited_cols = st.session_state.main_data_editor.get('edited_columns', {})
-
-#     if edited_rows:
-#         edited_row_key = next(iter(edited_rows))
-#         try:
-#             row_index = int(edited_row_key) + 1
-#         except (ValueError, TypeError):
-#             row_index = edited_row_key
-
-#         if edited_cols:
-#             edited_col_name = next(iter(edited_cols))
-#             st.warning(f"คุณกำลังแก้ไขแถวที่ **{row_index}**, คอลัมน์ **{edited_col_name}**")
-#         else:
-#             st.warning(f"คุณกำลังแก้ไขแถวที่ **{row_index}**")
 
 column_configuration = {
     "_index": st.column_config.Column(
@@ -349,11 +346,11 @@ if st.session_state.warning_message:
 
 st.header("สรุป")
 if st.session_state.results:
-    st.write(f"**จำนวนเกมที่เล่น:** {st.session_state.results['total_games']}")
-    st.write(f"**จำนวนลูกเเบดที่ใช้ทั้งหมด:** {st.session_state.results['total_slashes']/4:.2f} units")
-    st.write(f"**คิดราคาเเบบเก่า:** {st.session_state.results['old_solution_sum']:.2f}")
-    st.write(f"**คิดราคาเเบบใหม่:** {st.session_state.results['net_price_sum']:.2f}")
-    st.write(f"**ราคาใหม่ - ราคาเก่า:** {st.session_state.results['new_solution_minus_old_solution']:.2f}")
+    st.write(f"**จำนวนเกมที่เล่น:** {st.session_state.results['total_games']} เกม")
+    st.write(f"**จำนวนลูกเเบดที่ใช้ทั้งหมด:** {st.session_state.results['total_slashes']/4:.2f} ลูก")
+    st.write(f"**คิดราคาเเบบเก่า:** {st.session_state.results['old_solution_sum']:.2f} บาท")
+    st.write(f"**คิดราคาเเบบใหม่:** {st.session_state.results['net_price_sum']:.2f} บาท")
+    st.write(f"**ราคาใหม่ - ราคาเก่า:** {st.session_state.results['new_solution_minus_old_solution']:.2f} บาท")
 elif st.session_state.results is None and not st.session_state.warning_message:
     st.write("No calculations performed yet or no valid data to process.")
 
