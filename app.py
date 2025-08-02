@@ -86,7 +86,6 @@ def dataframe_to_image(df, date_text="", columns_to_show=None):
     Converts a pandas DataFrame to a Pillow Image object with aligned columns,
     and adds a title and a date. Only includes specified columns.
     """
-    # Filter the DataFrame to show only the specified columns
     if columns_to_show:
         df_filtered = df[columns_to_show]
     else:
@@ -115,7 +114,7 @@ def dataframe_to_image(df, date_text="", columns_to_show=None):
     row_height = line_height + 5
     
     title_text = "ตารางก๊วน"
-    title_height = title_font.getbbox(title_text)[3] - title_font.getbbox(title_text)[1]
+    title_height = title_font.getbbox(title_text)[3] - title_font.getbbox("A")[1]
     
     img_width = total_width + 40
     img_height = title_height + line_height + 20 + header_height + (len(df_filtered) * row_height) + 40
@@ -128,7 +127,7 @@ def dataframe_to_image(df, date_text="", columns_to_show=None):
     
     draw.text((x_offset, y_offset), title_text, font=title_font, fill='black')
     
-    date_x = x_offset + title_font.getbbox(title_text)[2] + 20
+    date_x = x_offset + font.getbbox(title_text)[2] + 20
     date_y = y_offset + (title_height - (font.getbbox(date_text)[3] - font.getbbox(date_text)[1])) / 2
     draw.text((date_x, date_y), date_text, font=font, fill='black')
     
@@ -197,6 +196,9 @@ if 'warning_message' not in st.session_state:
     st.session_state.warning_message = ""
 if 'current_date' not in st.session_state:
     st.session_state.current_date = date.today()
+# New session state variable to manage scroll message
+if 'show_scroll_message' not in st.session_state:
+    st.session_state.show_scroll_message = False
 
 if 'current_game_cols' not in st.session_state:
     st.session_state.current_game_cols = ["game1", "game2", "game3", "game4", "game5"]
@@ -224,9 +226,10 @@ with col4:
 
 st.header("ตารางก๊วน")
 
-if 'main_data_editor' in st.session_state and st.session_state.main_data_editor['edited_rows']:
-    edited_rows = st.session_state.main_data_editor['edited_rows']
-    edited_cols = st.session_state.main_data_editor['edited_columns']
+# Check for edits to display a message
+if 'main_data_editor' in st.session_state and st.session_state.main_data_editor:
+    edited_rows = st.session_state.main_data_editor.get('edited_rows', {})
+    edited_cols = st.session_state.main_data_editor.get('edited_columns', {})
 
     if edited_rows:
         edited_row_key = next(iter(edited_rows))
@@ -271,21 +274,32 @@ column_configuration = {
 
 initial_column_order = ["Name", "Time", "Total /", "Price"] + st.session_state.current_game_cols
 
-if st.button("เพิ่มคอลัมน์ Game"):
-    next_game_number = len(st.session_state.current_game_cols) + 1
-    new_col_name = f"game{next_game_number}"
-    
-    if new_col_name in headers:
-        if new_col_name not in st.session_state.current_game_cols:
-            if new_col_name not in st.session_state.df.columns:
-                st.session_state.df[new_col_name] = ""
+col_add_cols, col_add_button = st.columns([1, 1])
+with col_add_cols:
+    num_to_add = st.number_input("จำนวนคอลัมน์ Game ที่จะเพิ่ม:", min_value=1, value=1, step=1)
+
+with col_add_button:
+    st.write("") 
+    if st.button("เพิ่มคอลัมน์ Game"):
+        st.session_state.show_scroll_message = True
+        
+        for i in range(int(num_to_add)):
+            next_game_number = len(st.session_state.current_game_cols) + 1
+            new_col_name = f"game{next_game_number}"
             
-            st.session_state.current_game_cols.append(new_col_name)
-        else:
-            st.warning(f"Column '{new_col_name}' already exists.")
-    else:
-        st.warning("You have reached the maximum number of game columns.")
-    st.rerun()
+            if new_col_name in headers:
+                if new_col_name not in st.session_state.current_game_cols:
+                    if new_col_name not in st.session_state.df.columns:
+                        st.session_state.df[new_col_name] = ""
+                    st.session_state.current_game_cols.append(new_col_name)
+            else:
+                st.warning("You have reached the maximum number of game columns.")
+                break 
+        st.rerun()
+
+# Display the message after adding columns
+if st.session_state.show_scroll_message:
+    st.info("เพิ่มคอลัมน์แล้ว! โปรดเลื่อนตารางไปทางขวาเพื่อดูคอลัมน์ใหม่")
 
 edited_df = st.data_editor(
     st.session_state.df,
@@ -297,6 +311,9 @@ edited_df = st.data_editor(
 )
 
 if st.button("Calculate", key="calculate_button"):
+    # Hide the scroll message on calculation
+    st.session_state.show_scroll_message = False
+
     cleaned_df = edited_df[edited_df['Name'].astype(str).str.strip() != ''].copy()
     
     cleaned_df.index = np.arange(1, len(cleaned_df) + 1)
@@ -351,7 +368,6 @@ st.subheader("Download ตารางตีก๊วน")
 if st.session_state.results:
     date_text_for_image = st.session_state.current_date.strftime("%d/%m/%Y")
     
-    # Pass the list of active columns to the function
     columns_to_include_in_image = ["Name", "Time", "Total /", "Price"] + st.session_state.current_game_cols
     
     image_bytes = dataframe_to_image(st.session_state.df, date_text_for_image, columns_to_include_in_image)
