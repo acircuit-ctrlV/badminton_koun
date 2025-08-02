@@ -91,7 +91,6 @@ def process_table_data(table_data_df, shuttle_val, walkin_val, court_val, real_s
     }
 
     # Convert the processed list of lists back to a DataFrame
-    # --- MODIFIED: Create a new index based on the length of processed_data ---
     new_index = np.arange(1, len(processed_data) + 1)
     updated_table_df = pd.DataFrame(processed_data, columns=table_data_df.columns, index=new_index)
     return updated_table_df, results
@@ -204,26 +203,11 @@ initial_data_list = [
     ["temp", "18:00", "", "", "l", "l", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
     ["pin", "18:00", "", "", "l", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""]
 ]
-initial_data_list = [
-    ["is", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
-    ["ploy", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
-    ["mart", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
-    ["voy", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
-    ["jump", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
-    ["tong", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
-    ["k", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
-    ["song", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
-    ["nice", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
-    ["nut", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
-    ["temp", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
-    ["pin", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""]
-]
 for row in initial_data_list:
     while len(row) < len(headers):
         row.append("")
 
 if 'df' not in st.session_state:
-    # --- MODIFIED: Create a new DataFrame with a 1-based index ---
     initial_df = pd.DataFrame(initial_data_list, columns=headers)
     initial_df.index = np.arange(1, len(initial_df) + 1)
     st.session_state.df = initial_df
@@ -259,11 +243,11 @@ with col4:
 
 st.header("ตารางก๊วน")
 
-# --- MODIFIED: The index column width is now explicitly set to 50 pixels ---
+# --- MODIFIED: Added disabled=True for several columns ---
 column_configuration = {
     "_index": st.column_config.Column(
         "No.",
-        width=50, # Changed from "small" to a fixed pixel value
+        width=50,
         disabled=True,
         pinned="left",
     ),
@@ -275,12 +259,27 @@ column_configuration = {
     "Time": st.column_config.TextColumn(
         "Time",
         width="small",
+        disabled=True, # Time is now read-only
+    ),
+    "Total /": st.column_config.NumberColumn(
+        "Total /",
+        width="small",
+        disabled=True, # Calculated column is now read-only
+    ),
+    "Price": st.column_config.NumberColumn(
+        "Price",
+        width="small",
+        disabled=True, # Calculated column is now read-only
     ),
 }
 
+# Add all "game" columns to the disabled list dynamically
+for i in range(1, 21):
+    column_configuration[f"game{i}"] = st.column_config.TextColumn(f"game{i}", width="small", disabled=True)
+
 edited_df = st.data_editor(
     st.session_state.df,
-    column_config=column_configuration, # Pass the configuration here
+    column_config=column_configuration,
     num_rows="dynamic",
     use_container_width=True,
     key="main_data_editor"
@@ -297,7 +296,6 @@ if st.button("Calculate"):
     dynamic_last_row_to_process = 0
     for idx, row in df_to_process.iterrows():
         if str(row['Name']).strip():
-            # Use iloc here to handle the custom index
             dynamic_last_row_to_process = df_to_process.index.get_loc(idx) + 1
 
     if dynamic_last_row_to_process == 0:
