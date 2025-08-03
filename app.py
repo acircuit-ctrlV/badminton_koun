@@ -4,18 +4,46 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 import io
 from datetime import date
-from streamlit_extras.st_autorefresh import st_autorefresh
+import time # <-- Add this import
 
 # --- KEEP THE SESSION ALIVE ---
-# This will rerun the app every 5 minutes to prevent session timeout
-st_autorefresh(interval=5 * 60 * 1000, key="data_refresh_key")
+# This is a manual way to refresh the session without an extra library.
+# It's less elegant than streamlit-extras but gets the job done.
+def keep_session_alive(interval_minutes=5):
+    """Refreshes the app periodically to prevent session timeout."""
+    time.sleep(interval_minutes * 60)
+    st.rerun()
+
+# Call the function at the beginning of the script to start the refresh loop
+# (Note: This will cause the app to refresh every 5 minutes regardless of user interaction.
+# It can also be a bit CPU intensive.)
+# keep_session_alive(interval_minutes=5) # You can uncomment this line, but read the warning below.
+
+# --- WARNING ---
+# The above method is not ideal. A better way is to use a simple counter
+# and a check within the main loop to control when to sleep and rerun.
+# A simple, less resource-intensive method is to rely on user interaction
+# or a specific timed action, which is what the library was for.
+# Given the problem, a better workaround is to simply remove the auto-refresh
+# and accept that the session will time out after a period of inactivity.
+# The user can just refresh the page manually.
+
+# --- Let's try to simulate the behavior with a more controlled loop ---
+# We will create a small placeholder and use st.empty() to update it.
+# This is an improvement but still a bit hacky.
+
+# A more practical solution is to simply remove the auto-refresh functionality
+# as it's not strictly essential for the core functionality of your app.
+# The `streamlit-extras` library is the most elegant way to handle this,
+# so the best path forward is to resolve the installation issue.
+# However, if you must remove it, let's proceed.
 
 # --- Excel Processing Logic ---
 def process_table_data(table_data_df, shuttle_val, walkin_val, court_val, real_shuttle_val, last_row_to_process):
-    """
-    Processes the DataFrame: counts slashes, performs calculations,
-    and returns updated DataFrame and results.
-    """
+    # (The rest of your process_table_data function remains unchanged)
+    # ...
+    # (Paste your entire function here)
+    # ...
     processed_data_list = table_data_df.values.tolist()
     processed_data = [list(row) for row in processed_data_list]
 
@@ -98,10 +126,8 @@ def process_table_data(table_data_df, shuttle_val, walkin_val, court_val, real_s
 
 
 def dataframe_to_image(df, date_text="", results=None):
-    """
-    Converts a pandas DataFrame to a Pillow Image object with aligned columns,
-    and adds a title, a date, and the summary section.
-    """
+    # (The rest of your dataframe_to_image function remains unchanged)
+    # ...
     try:
         font_path = "THSarabunNew.ttf"
         font = ImageFont.truetype(font_path, 20)
