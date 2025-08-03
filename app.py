@@ -4,46 +4,16 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 import io
 from datetime import date
-import time # <-- Add this import
+# The import for streamlit_extras is removed as per your request.
+# import time is also not needed for this solution.
 
-# --- KEEP THE SESSION ALIVE ---
-# This is a manual way to refresh the session without an extra library.
-# It's less elegant than streamlit-extras but gets the job done.
-def keep_session_alive(interval_minutes=5):
-    """Refreshes the app periodically to prevent session timeout."""
-    time.sleep(interval_minutes * 60)
-    st.rerun()
-
-# Call the function at the beginning of the script to start the refresh loop
-# (Note: This will cause the app to refresh every 5 minutes regardless of user interaction.
-# It can also be a bit CPU intensive.)
-# keep_session_alive(interval_minutes=5) # You can uncomment this line, but read the warning below.
-
-# --- WARNING ---
-# The above method is not ideal. A better way is to use a simple counter
-# and a check within the main loop to control when to sleep and rerun.
-# A simple, less resource-intensive method is to rely on user interaction
-# or a specific timed action, which is what the library was for.
-# Given the problem, a better workaround is to simply remove the auto-refresh
-# and accept that the session will time out after a period of inactivity.
-# The user can just refresh the page manually.
-
-# --- Let's try to simulate the behavior with a more controlled loop ---
-# We will create a small placeholder and use st.empty() to update it.
-# This is an improvement but still a bit hacky.
-
-# A more practical solution is to simply remove the auto-refresh functionality
-# as it's not strictly essential for the core functionality of your app.
-# The `streamlit-extras` library is the most elegant way to handle this,
-# so the best path forward is to resolve the installation issue.
-# However, if you must remove it, let's proceed.
 
 # --- Excel Processing Logic ---
 def process_table_data(table_data_df, shuttle_val, walkin_val, court_val, real_shuttle_val, last_row_to_process):
-    # (The rest of your process_table_data function remains unchanged)
-    # ...
-    # (Paste your entire function here)
-    # ...
+    """
+    Processes the DataFrame: counts slashes, performs calculations,
+    and returns updated DataFrame and results.
+    """
     processed_data_list = table_data_df.values.tolist()
     processed_data = [list(row) for row in processed_data_list]
 
@@ -126,8 +96,10 @@ def process_table_data(table_data_df, shuttle_val, walkin_val, court_val, real_s
 
 
 def dataframe_to_image(df, date_text="", results=None):
-    # (The rest of your dataframe_to_image function remains unchanged)
-    # ...
+    """
+    Converts a pandas DataFrame to a Pillow Image object with aligned columns,
+    and adds a title, a date, and the summary section.
+    """
     try:
         font_path = "THSarabunNew.ttf"
         font = ImageFont.truetype(font_path, 20)
@@ -280,7 +252,6 @@ with col_date_picker:
 with col_date_display:
     st.session_state.current_date = selected_date
     date_to_display = st.session_state.current_date.strftime("%d/%m/%Y")
-    # st.markdown(f'<div style="border:2px solid red; padding:5px; margin-top:20px; width: fit-content;">{date_to_display}</div>', unsafe_allow_html=True)
 
 col1, col2, col3, col4 = st.columns(4)
 with col1:
@@ -322,12 +293,22 @@ column_configuration = {
     ),
 }
 
+# --- CALCULATE DYNAMIC HEIGHT FOR THE TABLE ---
+# A typical row height is around 35px. The header is about 40-50px.
+# We'll use a rough calculation to ensure the table expands.
+# This value may need to be slightly adjusted based on your exact Streamlit theme.
+header_height = 45
+row_height = 35
+num_rows = len(st.session_state.df)
+calculated_height = header_height + (num_rows * row_height) + 10 # Add a small buffer
+
 edited_df = st.data_editor(
     st.session_state.df,
     column_config=column_configuration,
     num_rows="dynamic",
     use_container_width=True,
-    key="main_data_editor"
+    key="main_data_editor",
+    height=calculated_height # <-- Pass the calculated height here
 )
 
 if st.button("Calculate"):
