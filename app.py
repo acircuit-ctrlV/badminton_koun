@@ -4,8 +4,17 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 import io
 from datetime import date
-# The import for streamlit_extras is removed as per your request.
-# import time is also not needed for this solution.
+
+# This is the CSS to hide the vertical scrollbar and allow the table to expand.
+# It targets the div that wraps the rows inside st.data_editor.
+no_scrollbar_css = """
+<style>
+.stDataFrame > div[data-baseweb="table"] > div:nth-child(2) {
+    overflow-y: hidden;
+}
+</style>
+"""
+st.markdown(no_scrollbar_css, unsafe_allow_html=True)
 
 # --- Excel Processing Logic ---
 def process_table_data(table_data_df, shuttle_val, walkin_val, court_val, real_shuttle_val, last_row_to_process):
@@ -292,22 +301,12 @@ column_configuration = {
     ),
 }
 
-# --- DYNAMICALLY CALCULATE HEIGHT FOR THE TABLE ---
-# Use the length of the *currently edited* DataFrame to calculate the height.
-# This ensures that when rows are added or removed, the table's height adapts.
-# Add a small buffer for the header and the "Add row" button.
-header_height = 45
-row_height = 35
-num_rows_in_editor = len(st.session_state.df) + 1 # +1 for the "Add row" button
-calculated_height = header_height + (num_rows_in_editor * row_height) + 10
-
 edited_df = st.data_editor(
     st.session_state.df,
     column_config=column_configuration,
     num_rows="dynamic",
     use_container_width=True,
-    key="main_data_editor",
-    height=calculated_height # <-- Pass the dynamically calculated height here
+    key="main_data_editor"
 )
 
 if st.button("Calculate"):
