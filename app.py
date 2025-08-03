@@ -7,7 +7,6 @@ from datetime import date
 # The import for streamlit_extras is removed as per your request.
 # import time is also not needed for this solution.
 
-
 # --- Excel Processing Logic ---
 def process_table_data(table_data_df, shuttle_val, walkin_val, court_val, real_shuttle_val, last_row_to_process):
     """
@@ -293,14 +292,14 @@ column_configuration = {
     ),
 }
 
-# --- CALCULATE DYNAMIC HEIGHT FOR THE TABLE ---
-# A typical row height is around 35px. The header is about 40-50px.
-# We'll use a rough calculation to ensure the table expands.
-# This value may need to be slightly adjusted based on your exact Streamlit theme.
+# --- DYNAMICALLY CALCULATE HEIGHT FOR THE TABLE ---
+# Use the length of the *currently edited* DataFrame to calculate the height.
+# This ensures that when rows are added or removed, the table's height adapts.
+# Add a small buffer for the header and the "Add row" button.
 header_height = 45
 row_height = 35
-num_rows = len(st.session_state.df)
-calculated_height = header_height + (num_rows * row_height) + 10 # Add a small buffer
+num_rows_in_editor = len(st.session_state.df) + 1 # +1 for the "Add row" button
+calculated_height = header_height + (num_rows_in_editor * row_height) + 10
 
 edited_df = st.data_editor(
     st.session_state.df,
@@ -308,7 +307,7 @@ edited_df = st.data_editor(
     num_rows="dynamic",
     use_container_width=True,
     key="main_data_editor",
-    height=calculated_height # <-- Pass the calculated height here
+    height=calculated_height # <-- Pass the dynamically calculated height here
 )
 
 if st.button("Calculate"):
