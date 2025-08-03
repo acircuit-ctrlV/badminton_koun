@@ -6,15 +6,17 @@ import io
 from datetime import date
 
 # This is the CSS to hide the vertical scrollbar and allow the table to expand.
-# It targets the div that wraps the rows inside st.data_editor.
+# We're trying a different selector that might be more robust.
 no_scrollbar_css = """
 <style>
-.stDataFrame > div[data-baseweb="table"] > div:nth-child(2) {
-    overflow-y: hidden;
+/* This targets the inner div that contains the table rows and hides the vertical scrollbar */
+.stDataFrame > div:first-child > div:nth-child(2) {
+    overflow-y: hidden !important;
 }
 </style>
 """
 st.markdown(no_scrollbar_css, unsafe_allow_html=True)
+
 
 # --- Excel Processing Logic ---
 def process_table_data(table_data_df, shuttle_val, walkin_val, court_val, real_shuttle_val, last_row_to_process):
@@ -301,12 +303,20 @@ column_configuration = {
     ),
 }
 
+# The height parameter is still included, but let's see if the CSS helps.
+num_rows_in_editor = len(st.session_state.df) + 1 # +1 for the "Add row" button
+header_height = 45
+row_height = 35
+calculated_height = header_height + (num_rows_in_editor * row_height) + 10
+
+
 edited_df = st.data_editor(
     st.session_state.df,
     column_config=column_configuration,
     num_rows="dynamic",
     use_container_width=True,
-    key="main_data_editor"
+    key="main_data_editor",
+    height=calculated_height # Still passing the calculated height
 )
 
 if st.button("Calculate"):
